@@ -40,3 +40,5 @@ jobs:
         echo "**Image:** \`${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest\`" >> $GITHUB_STEP_SUMMARY
         echo "**Size:** ~32GB (models included)" >> $GITHUB_STEP_SUMMARY
         echo "**Ready for RunPod!**" >> $GITHUB_STEP_SUMMARY
+
+      #fucks sake mate
