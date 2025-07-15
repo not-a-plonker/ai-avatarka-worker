@@ -1,8 +1,15 @@
 {
   "input": {
-    "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=",
+    "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAgACADASIAAhEBAxEB/8QAGwAAAgIDAQAAAAAAAAAAAAAABgcDBQABBAL/xAAuEAACAgEDAgQEBwEAAAAAAAABAgMEEQAFIQYHEhMxYTJBcYEUFSJCUYGx0fH/xAAZAQADAQEBAAAAAAAAAAAAAAABAgMEAAX/xAAhEQACAQQBBAMAAAAAAAAAAAABAgADESEEEjFBUWETMpH/2gAIAQEAAD8A2VgdPW7wWjVaSyDGvDRfj0kP7S2PGn6gOTnGcfX0zqE3qiqtvF2DUz3O6WHVODblLHHmzNGYjKX2jhsscE5IHGM+edNj7MUNb31pFPanVsRNnBEryAnJ9eD86nhtFpYXfTKo8m8W+V2MnGC2NJIJIxNc7t3fSZkkXWbGKzGQ5VtNvYDNJJI2MKzEevHGpJLM07FLNQP2qEMzrKw5wDJvVo9lKL4s+g6B9Vy+DjTU6btKdG2oJXMYa8o3DPP1GQHGe0fN/Qcj9J6N6RV4tKOGCWvGJJHjpIp3I3fqGR6wSLuQp5IDa3k6JDp6e7TdN0Xk2LJSP2j2w6vdTbhtm65aM7aG9WaMYzIJKoOQPXy5BjHrnGi/eek9vu2r/wAt2tLNlK0xWjxYlYeHK2JWVrBHGANiggcnwBqTZ+pNPX6VhwWW7BUoqYkLFmKIkZZyzsrYGfmCEP1Gi7Y+uuj6FVdqNdBxNSsUthQPjqmMfLhDvjkjOMknj18DPb7K6F3LZLT13s1m1JdElq8MNXhKlckrkxZ+NdAncfrzPyG4bDbr5m5LJE9lJCWJztuWXqW4CjOCBnBwcg+8aTXqPcu9N7p12uQ1I9jrW7LJGFWxKrlR+/4zz6AnWH+Ltx/mOr3/iKH8hq23Vcj2qyvHYrcOIpOWIBOFztJ/c6k+mGvPFWu3XANKl2h42XhVMX8+I7N5rMynJA6SWQ1dJTnH0aRrr6dYcjEefn86z1lECXj7frR/9k=",
     "effect": "ghostrider",
     "prompt": "in this video a person transforms into a Ghost Rider. Their head transforms into a skull in the flames, their eye sockets flicker with soul fire, flames and smoke spew out of their mouth, their clothes turn into ashes in the flames, and person's bones are exposed",
-    "negative_prompt": "bad quality video, artifacts"
+    "negative_prompt": "bad quality video, artifacts, blurry, distorted, low resolution",
+    "steps": 10,
+    "cfg": 6,
+    "frames": 85,
+    "fps": 16,
+    "width": 720,
+    "height": 720,
+    "seed": 42
   }
 }
