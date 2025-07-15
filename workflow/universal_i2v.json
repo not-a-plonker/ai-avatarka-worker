@@ -15,8 +15,8 @@
       "model": "wan2.1_i2v_480p_14B_bf16.safetensors",
       "quantization": "fp8_e5m2",
       "base_precision": "bf16",
-      "load_device": "gpu",
-      "offload_device": "cpu",
+      "load_device": "main_device",
+      "offload_device": "offload_device",
       "attn_mode": "sageattn",
       "block_swap_args": ["32", 0],
       "lora": ["41", 0]
@@ -67,7 +67,8 @@
   "41": {
     "inputs": {
       "lora_name": "PLACEHOLDER_LORA",
-      "strength": 1.0
+      "strength": 1.0,
+      "lora": null
     },
     "class_type": "WanVideoLoraSelect",
     "_meta": {
@@ -88,9 +89,10 @@
   },
   "13": {
     "inputs": {
-      "model_name": "open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors",
+      "model_name": "clip_vision_h.safetensors",
       "dtype": "fp16",
-      "device": "gpu"
+      "device": "gpu",
+      "precision": "fp16"
     },
     "class_type": "LoadWanVideoClipTextEncoder",
     "_meta": {
