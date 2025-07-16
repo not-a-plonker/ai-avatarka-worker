@@ -137,7 +137,8 @@
   "21": {
     "inputs": {
       "model_name": "wan_2.1_vae.safetensors",
-      "dtype": "bf16"
+      "dtype": "bf16",
+      "precision": "bf16"
     },
     "class_type": "WanVideoVAELoader",
     "_meta": {
