@@ -89,7 +89,7 @@
   },
   "13": {
     "inputs": {
-      "model_name": "clip_vision_h.safetensors",
+      "model_name": "open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors",
       "dtype": "fp16",
       "device": "gpu",
       "precision": "fp16"
