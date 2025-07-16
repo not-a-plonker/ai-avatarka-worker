@@ -83,7 +83,7 @@ RUN echo "📦 Downloading Wan 2.1 models..." && \
     \
     wget --progress=dot:giga --timeout=0 --tries=3 \
     -O /workspace/ComfyUI/models/clip_vision/open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors \
-    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors" && \
+    "https://huggingface.co/Kijai/WanVideo_comfy/resolve/fadcc59aae1b21d1d6d8030123091af7a66bd252/open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors" && \
     \
     echo "✅ Base models downloaded"
 
