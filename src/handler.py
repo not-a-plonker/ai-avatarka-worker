@@ -160,9 +160,11 @@ def customize_workflow(workflow: Dict, params: Dict) -> Dict:
             # Update WanVideoLoraSelect (Node 41) - replace PLACEHOLDER_LORA
             elif class_type == "WanVideoLoraSelect":
                 if inputs.get("lora_name") == "PLACEHOLDER_LORA":
-                    inputs["lora_name"] = effect_config["lora"]
+                    lora_filename = effect_config["lora"]
+                    inputs["lora_name"] = lora_filename
+                    inputs["lora"] = lora_filename  # Set both inputs to the same filename
                     inputs["strength"] = effect_config.get("lora_strength", 1.0)
-                    logger.info(f"✅ Updated LoRA: {effect_config['lora']} (strength: {inputs['strength']})")
+                    logger.info(f"✅ Updated LoRA: {lora_filename} (strength: {inputs['strength']})")
             
             # Update WanVideoSampler (Node 27) - handle seed properly
             elif class_type == "WanVideoSampler":

@@ -68,7 +68,7 @@
     "inputs": {
       "lora_name": "PLACEHOLDER_LORA",
       "strength": 1.0,
-      "lora": null
+      "lora": "PLACEHOLDER_LORA"
     },
     "class_type": "WanVideoLoraSelect",
     "_meta": {
