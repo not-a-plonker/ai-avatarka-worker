@@ -78,12 +78,12 @@ RUN echo "📦 Downloading Wan 2.1 models..." && \
     "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors" && \
     \
     wget --progress=dot:giga --timeout=0 --tries=3 \
-    -O /workspace/ComfyUI/models/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors \
-    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors" && \
+    -O /workspace/ComfyUI/models/text_encoders/umt5_xxl_fp16.safetensors \
+    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp16.safetensors" && \
     \
     wget --progress=dot:giga --timeout=0 --tries=3 \
-    -O /workspace/ComfyUI/models/clip_vision/open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors \
-    "https://huggingface.co/Kijai/WanVideo_comfy/resolve/fadcc59aae1b21d1d6d8030123091af7a66bd252/open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors" && \
+    -O /workspace/ComfyUI/models/clip_vision/open-clip-xlm-roberta-large-vit-huge-14_fp16.safetensors \
+    "https://huggingface.co/Kijai/WanVideo_comfy/resolve/b4fde5290d401dff216d70a915643411e9532951/open-clip-xlm-roberta-large-vit-huge-14_fp16.safetensors" && \
     \
     echo "✅ Base models downloaded"
 

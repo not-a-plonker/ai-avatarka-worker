@@ -13,11 +13,10 @@
   "22": {
     "inputs": {
       "model": "wan2.1_i2v_480p_14B_bf16.safetensors",
-      "quantization": "fp8_e5m2",
       "base_precision": "bf16",
-      "load_device": "main_device",
-      "offload_device": "offload_device",
-      "attn_mode": "sageattn",
+      "quantization": "fp8_e4m3fn",
+      "load_device": "offload_device",
+      "attention_mode": "sageattn",
       "block_swap_args": ["32", 0],
       "lora": ["41", 0]
     },
@@ -77,10 +76,10 @@
   },
   "11": {
     "inputs": {
-      "model_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
-      "precision": "bf16",
-      "device": "gpu",
-      "attention_mode": "disabled"
+      "model_name": "umt5_xxl_fp16.safetensors",
+      "precision": "fp16",
+      "load_device": "offload_device",
+      "quantization": "disabled"
     },
     "class_type": "LoadWanVideoT5TextEncoder",
     "_meta": {
@@ -89,10 +88,9 @@
   },
   "13": {
     "inputs": {
-      "model_name": "open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors",
-      "dtype": "fp16",
-      "device": "gpu",
-      "precision": "fp16"
+      "model_name": "open-clip-xlm-roberta-large-vit-huge-14_fp16.safetensors",
+      "precision": "fp16",
+      "load_device": "offload_device"
     },
     "class_type": "LoadWanVideoClipTextEncoder",
     "_meta": {
