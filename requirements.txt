@@ -32,6 +32,7 @@ safetensors>=0.3.0        # ~20MB
 omegaconf>=2.3.0          # ~5MB
 einops>=0.6.0             # ~5MB
 kornia>=0.7.0             # ~100MB
+sageattention>=1.0.0      # ~50MB (for WanVideoWrapper sageattn mode)
 
 # Web & Async
 aiohttp>=3.8.0            # ~10MB
