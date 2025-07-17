@@ -11,17 +11,8 @@ RUN echo "🔍 DEBUGGING: What's in hearmeman's base image?" && \
     echo "Python version:" && python --version && \
     echo "Pip list (looking for sageattention):" && pip list | grep -i sage || echo "No sageattention found in pip list" && \
     echo "Trying to import sageattention from base image:" && \
-    python -c "
-try:
-    from sageattention import sageattn
-    print('✅ SageAttention import successful from base image')
-    print('SageAttention location:', sageattn.__module__)
-except ImportError as e:
-    print('❌ SageAttention import failed from base image:', str(e))
-except Exception as e:
-    print('❌ Other error:', str(e))
-" && \
-    echo "Python path:" && python -c "import sys; print('\n'.join(sys.path))" && \
+    python -c "import sys; exec('try:\\n    from sageattention import sageattn\\n    print(\\\"✅ SageAttention import successful from base image\\\")\\nexcept ImportError as e:\\n    print(\\\"❌ SageAttention import failed from base image:\\\", str(e))\\nexcept Exception as e:\\n    print(\\\"❌ Other error:\\\", str(e))')" && \
+    echo "Python path:" && python -c "import sys; print('\\n'.join(sys.path))" && \
     echo "Looking for sageattention files:" && \
     find /usr/local/lib/python*/site-packages/ -name "*sage*" 2>/dev/null || echo "No sageattention files found"
 
@@ -30,13 +21,7 @@ RUN pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
 
 # STEP 2: Check after installing basic deps
 RUN echo "🔍 DEBUGGING: After installing runpod/gdown..." && \
-    python -c "
-try:
-    from sageattention import sageattn
-    print('✅ SageAttention still works after basic deps')
-except ImportError as e:
-    print('❌ SageAttention broken after basic deps:', str(e))
-"
+    python -c "exec('try:\\n    from sageattention import sageattn\\n    print(\\\"✅ SageAttention still works after basic deps\\\")\\nexcept ImportError as e:\\n    print(\\\"❌ SageAttention broken after basic deps:\\\", str(e))')"
 
 # Copy and install requirements 
 COPY requirements.txt /tmp/requirements.txt
@@ -45,29 +30,11 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.
 # STEP 3: Check after installing your requirements
 RUN echo "🔍 DEBUGGING: After installing requirements.txt..." && \
     pip list | grep -i sage && \
-    python -c "
-try:
-    from sageattention import sageattn
-    print('✅ SageAttention works after requirements.txt')
-except ImportError as e:
-    print('❌ SageAttention BROKEN after requirements.txt:', str(e))
-    print('This is likely the culprit!')
-except Exception as e:
-    print('❌ Other error:', str(e))
-"
+    python -c "exec('try:\\n    from sageattention import sageattn\\n    print(\\\"✅ SageAttention works after requirements.txt\\\")\\nexcept ImportError as e:\\n    print(\\\"❌ SageAttention BROKEN after requirements.txt:\\\", str(e))\\n    print(\\\"This is likely the culprit!\\\")\\nexcept Exception as e:\\n    print(\\\"❌ Other error:\\\", str(e))')"
 
 # STEP 4: Check what version we have now
 RUN echo "🔍 DEBUGGING: SageAttention version info..." && \
-    python -c "
-try:
-    import sageattention
-    print('SageAttention version:', getattr(sageattention, '__version__', 'unknown'))
-    print('SageAttention location:', sageattention.__file__)
-    from sageattention import sageattn
-    print('Available functions:', [f for f in dir(sageattention) if not f.startswith('_')])
-except Exception as e:
-    print('Error getting version info:', e)
-"
+    python -c "exec('try:\\n    import sageattention\\n    print(\\\"SageAttention available:\\\", hasattr(sageattention, \\\"sageattn\\\"))\\n    from sageattention import sageattn\\n    print(\\\"✅ sageattn import works\\\")\\nexcept Exception as e:\\n    print(\\\"Error:\\\", e)')"
 
 # Continue with the rest of your build...
 RUN echo "🔍 Checking base image contents..." && \
@@ -114,14 +81,7 @@ RUN for dir in /workspace/ComfyUI/custom_nodes/*/; do \
 
 # STEP 6: Check after custom nodes
 RUN echo "🔍 DEBUGGING: After custom nodes..." && \
-    python -c "
-try:
-    from sageattention import sageattn
-    print('✅ SageAttention works after custom nodes')
-except ImportError as e:
-    print('❌ SageAttention broken after custom nodes:', str(e))
-    print('One of the custom nodes broke it!')
-"
+    python -c "exec('try:\\n    from sageattention import sageattn\\n    print(\\\"✅ SageAttention works after custom nodes\\\")\\nexcept ImportError as e:\\n    print(\\\"❌ SageAttention broken after custom nodes:\\\", str(e))\\n    print(\\\"One of the custom nodes broke it!\\\")')"
 
 # Create model directories
 RUN mkdir -p /workspace/ComfyUI/models/diffusion_models \
@@ -145,20 +105,7 @@ COPY src/handler.py /workspace/src/handler.py
 
 # FINAL TEST: Try to actually use SageAttention like the WanVideoWrapper would
 RUN echo "🔍 FINAL DEBUGGING: Testing actual SageAttention usage..." && \
-    python -c "
-try:
-    import torch
-    from sageattention import sageattn
-    print('✅ SageAttention import successful')
-    
-    # Test if we can actually call it (without GPU)
-    print('Available in sageattn module:', dir(sageattn))
-    print('✅ SageAttention ready for use')
-except Exception as e:
-    print('❌ FINAL TEST FAILED:', str(e))
-    import traceback
-    traceback.print_exc()
-"
+    python -c "exec('try:\\n    from sageattention import sageattn\\n    print(\\\"✅ SageAttention import successful\\\")\\n    print(\\\"✅ SageAttention ready for use\\\")\\nexcept Exception as e:\\n    print(\\\"❌ FINAL TEST FAILED:\\\", str(e))')"
 
 # Create startup script
 RUN echo '#!/usr/bin/env python3\nimport sys\nsys.path.append("/workspace/src")\nfrom handler import handler\nimport runpod\nprint("🚀 Starting AI-Avatarka handler...")\nrunpod.serverless.start({"handler": handler})' > /workspace/start.py && chmod +x /workspace/start.py
