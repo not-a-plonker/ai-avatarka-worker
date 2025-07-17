@@ -19,18 +19,21 @@ RUN sed -i '/sageattention/d' /tmp/requirements.txt && \
 # Install build dependencies
 RUN apt-get update && apt-get install -y git build-essential ninja-build
 
-# Install SageAttention from source with detailed logging
-RUN echo "🔧 Starting SageAttention installation..." && \
+# Clone SageAttention repo
+RUN echo "🔧 Cloning SageAttention..." && \
     cd /tmp && \
     git clone https://github.com/thu-ml/SageAttention.git && \
-    cd SageAttention && \
-    echo "📦 SageAttention repo cloned, starting compilation..." && \
-    python setup.py install --verbose && \
-    echo "✅ SageAttention compilation completed" && \
-    cd / && rm -rf /tmp/SageAttention
+    ls -la SageAttention/
 
-# Clean up build tools
-RUN apt-get remove -y build-essential ninja-build && apt-get autoremove -y
+# Compile SageAttention
+RUN echo "📦 Starting SageAttention compilation..." && \
+    cd /tmp/SageAttention && \
+    python setup.py install --verbose
+
+# Clean up
+RUN rm -rf /tmp/SageAttention && \
+    apt-get remove -y build-essential ninja-build && \
+    apt-get autoremove -y
 
 # Verify SageAttention works
 RUN python -c "from sageattention import sageattn; print('✅ SageAttention verified working')"
