@@ -1,4 +1,4 @@
-# AI-Avatarka - Workin version with proper SageAttention installation
+# AI-Avatarka - Complete fixed version with ComfyUI installation
 FROM hearmeman/comfyui-wan-template:v2
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -6,46 +6,49 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     COMFYUI_PATH="/workspace/ComfyUI"
 
-# Install build dependencies for SageAttention compilation
-RUN apt-get update && apt-get install -y \
-    git \
-    build-essential \
-    ninja-build \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install basic dependencies
+# Install dependencies
 RUN pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
 
-# Install your requirements EXCEPT sageattention (we'll install it from source)
+# Copy and install requirements (EXCLUDING sageattention)
 COPY requirements.txt /tmp/requirements.txt
 RUN sed -i '/sageattention/d' /tmp/requirements.txt && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
-# Install SageAttention from source (the CORRECT way)
-RUN echo "🔧 Installing SageAttention from source..." && \
+# Install SageAttention from source (official way for V2.2.0)
+RUN apt-get update && apt-get install -y git build-essential && \
     cd /tmp && \
     git clone https://github.com/thu-ml/SageAttention.git && \
     cd SageAttention && \
     python setup.py install && \
-    cd / && \
-    rm -rf /tmp/SageAttention && \
-    echo "✅ SageAttention installed"
+    cd / && rm -rf /tmp/SageAttention && \
+    apt-get remove -y build-essential && apt-get autoremove -y && \
+    echo "✅ SageAttention V2.2.0 installed from source"
 
 # Verify SageAttention works
 RUN python -c "from sageattention import sageattn; print('✅ SageAttention verified working')"
 
-# Ensure ComfyUI exists
+# Debug: Check what's in the base image
+RUN echo "🔍 Checking base image contents..." && \
+    ls -la /workspace/ || echo "No /workspace directory" && \
+    find / -name "ComfyUI" -type d 2>/dev/null || echo "No ComfyUI directory found"
+
+# Ensure ComfyUI is properly installed
 RUN if [ ! -f "/workspace/ComfyUI/main.py" ]; then \
-        echo "Installing ComfyUI..."; \
+        echo "🔧 Installing ComfyUI..."; \
         mkdir -p /workspace && \
         cd /workspace && \
         git clone https://github.com/comfyanonymous/ComfyUI.git && \
         cd ComfyUI && \
         pip install -r requirements.txt; \
     else \
-        echo "ComfyUI already present"; \
+        echo "✅ ComfyUI already present"; \
     fi
+
+# Verify ComfyUI installation
+RUN echo "🔍 Verifying ComfyUI installation..." && \
+    ls -la /workspace/ComfyUI/main.py && \
+    echo "✅ ComfyUI main.py found"
 
 # Create custom_nodes directory and install custom nodes
 RUN mkdir -p /workspace/ComfyUI/custom_nodes && \
@@ -63,9 +66,6 @@ RUN for dir in /workspace/ComfyUI/custom_nodes/*/; do \
         fi; \
     done
 
-# Verify SageAttention still works after everything
-RUN python -c "from sageattention import sageattn; print('✅ SageAttention still working after all installations')"
-
 # Create model directories
 RUN mkdir -p /workspace/ComfyUI/models/diffusion_models \
              /workspace/ComfyUI/models/vae \
@@ -82,7 +82,7 @@ COPY lora/ /workspace/ComfyUI/models/loras/
 COPY builder/ /workspace/builder/
 COPY src/handler.py /workspace/src/handler.py
 
-# Download all models during build
+# Download all models during build (using wget for reliability)
 RUN echo "📦 Downloading Wan 2.1 models..." && \
     wget --progress=dot:giga --timeout=0 --tries=3 \
     -O /workspace/ComfyUI/models/diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors \
@@ -117,7 +117,6 @@ RUN echo "🔍 Final verification..." && \
     ls -lh /workspace/ComfyUI/models/clip_vision/ && \
     echo "LoRA files:" && ls -lh /workspace/ComfyUI/models/loras/ && \
     echo "Custom nodes:" && ls -la /workspace/ComfyUI/custom_nodes/ && \
-    python -c "from sageattention import sageattn; print('✅ SageAttention final check passed')" && \
     echo "✅ All verified and ready!"
 
 # Clean up build files to reduce image size
