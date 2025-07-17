@@ -36,8 +36,27 @@ RUN rm -rf /tmp/SageAttention && \
     apt-get remove -y build-essential ninja-build && \
     apt-get autoremove -y
 
-# Verify SageAttention works
-RUN python -c "from sageattention import sageattn; print('✅ SageAttention verified working')"
+# Verify SageAttention works with detailed debugging
+RUN echo "🔍 Debugging SageAttention installation..." && \
+    python -c "
+import sys
+print('Python path:', sys.path)
+try:
+    import sageattention
+    print('✅ sageattention module imported successfully')
+    print('Module location:', sageattention.__file__)
+    print('Module contents:', [x for x in dir(sageattention) if not x.startswith('_')])
+    from sageattention import sageattn
+    print('✅ sageattn imported successfully')
+except ImportError as e:
+    print('❌ Import error:', e)
+    import traceback
+    traceback.print_exc()
+except Exception as e:
+    print('❌ Other error:', e)
+    import traceback
+    traceback.print_exc()
+"
 
 # Verify SageAttention works
 RUN python -c "from sageattention import sageattn; print('✅ SageAttention verified working')"
