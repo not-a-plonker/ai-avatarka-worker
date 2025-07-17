@@ -61,9 +61,9 @@ jobs:
         IMAGE_SIZE=$(docker images ${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest --format "table {{.Size}}" | tail -n 1)
         echo "IMAGE_SIZE=$IMAGE_SIZE" >> $GITHUB_ENV
         
-        # Test SageAttention in the locally built image (skip if too slow)
-        echo "🧪 Quick SageAttention test..."
-        timeout 60 docker run --rm ${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest python -c "from sageattention import sageattn; print('✅ SageAttention works')" || echo "⚠️ SageAttention test skipped (timeout/failed)"
+        # Test basic functionality (skip SageAttention since it builds at runtime)
+        echo "🧪 Quick container test..."
+        timeout 30 docker run --rm ${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest python -c "print('✅ Container works, Python available')" || echo "⚠️ Container test failed"
         
     - name: Summary
       run: |
@@ -71,7 +71,7 @@ jobs:
         echo "**Image:** \`${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest\`" >> $GITHUB_STEP_SUMMARY
         echo "**Tag:** \`${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
         echo "**Size:** ${{ env.IMAGE_SIZE || '~35GB' }} (models + SageAttention included)" >> $GITHUB_STEP_SUMMARY
-        echo "**SageAttention:** ✅ Using hearmeman's pre-built version" >> $GITHUB_STEP_SUMMARY
+        echo "**SageAttention:** ✅ Built at runtime (hearmeman's method)" >> $GITHUB_STEP_SUMMARY
         echo "**Ready for RunPod!**" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 🎯 RunPod Setup:" >> $GITHUB_STEP_SUMMARY

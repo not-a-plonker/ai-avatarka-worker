@@ -1,5 +1,4 @@
-
-# AI-Avatarka - Use Hearmean's SageAttention method
+# AI-Avatarka - Build SageAttention at runtime like hearmeman
 FROM hearmeman/comfyui-wan-template:v2
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -7,7 +6,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     COMFYUI_PATH="/workspace/ComfyUI"
 
-# Install dependencies (DON'T touch SageAttention - it's already working!)
+# Install build dependencies (needed for runtime SageAttention compilation)
+RUN apt-get update && apt-get install -y git build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
 RUN pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
 
 # Copy and install requirements (EXCLUDING sageattention AND flash-attn)
@@ -16,9 +19,6 @@ RUN sed -i '/sageattention/d' /tmp/requirements.txt && \
     sed -i '/flash-attn/d' /tmp/requirements.txt && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
-
-# Verify SageAttention still works after our installations
-RUN python -c "from sageattention import sageattn; print('✅ SageAttention still working after requirements install')"
 
 # Debug: Check what's in the base image
 RUN echo "🔍 Checking base image contents..." && \
@@ -58,9 +58,6 @@ RUN for dir in /workspace/ComfyUI/custom_nodes/*/; do \
             pip install --no-cache-dir -r "$dir/requirements.txt"; \
         fi; \
     done
-
-# Final SageAttention verification
-RUN python -c "from sageattention import sageattn; print('✅ SageAttention still working after all installations')"
 
 # Create model directories
 RUN mkdir -p /workspace/ComfyUI/models/diffusion_models \
@@ -103,7 +100,7 @@ RUN echo "🎭 Downloading LoRA files..." && \
     python /workspace/builder/download_models.py && \
     echo "✅ LoRA files downloaded"
 
-# Final verification
+# Final verification (no SageAttention verification - will be built at runtime)
 RUN echo "🔍 Final verification..." && \
     echo "ComfyUI main.py:" && ls -lh /workspace/ComfyUI/main.py && \
     echo "Models:" && \
@@ -113,13 +110,12 @@ RUN echo "🔍 Final verification..." && \
     ls -lh /workspace/ComfyUI/models/clip_vision/ && \
     echo "LoRA files:" && ls -lh /workspace/ComfyUI/models/loras/ && \
     echo "Custom nodes:" && ls -la /workspace/ComfyUI/custom_nodes/ && \
-    python -c "from sageattention import sageattn; print('✅ SageAttention final verification passed')" && \
-    echo "✅ All verified and ready!"
+    echo "✅ All verified and ready! (SageAttention will be built at runtime)"
 
 # Clean up build files to reduce image size
 RUN rm -rf /workspace/builder/ /tmp/* /var/lib/apt/lists/*
 
-# Create startup script
+# Create startup script that uses our new handler
 RUN echo '#!/usr/bin/env python3\nimport sys\nsys.path.append("/workspace/src")\nfrom handler import handler\nimport runpod\nprint("🚀 Starting AI-Avatarka handler...")\nrunpod.serverless.start({"handler": handler})' > /workspace/start.py && chmod +x /workspace/start.py
 
 WORKDIR /workspace

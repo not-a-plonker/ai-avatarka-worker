@@ -1,39 +1,4 @@
-def start_comfyui():
-    """Start ComfyUI server"""
-    global comfyui_process, comfyui_initialized
-    
-    if comfyui_initialized:
-        return True
-    
-    try:
-        logger.info("🚀 Starting ComfyUI server...")
-        
-        # Debug SageAttention before starting ComfyUI
-        logger.info("🔍 Checking SageAttention before ComfyUI startup...")
-        try:
-            import sageattention
-            logger.info(f"✅ SageAttention available at: {sageattention.__file__}")
-            from sageattention import sageattn
-            logger.info("✅ sageattn import works before ComfyUI")
-        except Exception as e:
-            logger.error(f"❌ SageAttention NOT available before ComfyUI: {e}")
-        
-        # Change to ComfyUI directory
-        os.chdir(COMFYUI_PATH)
-        
-        # Debug environment in ComfyUI directory
-        logger.info(f"🔍 Working directory: {os.getcwd()}")
-        logger.info(f"🔍 Python executable: {sys.executable}")
-        logger.info(f"🔍 PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
-        
-        # Start server process
-        comfyui_process = subprocess.Popen([
-            sys.executable, "main.py",
-            "--listen", "127.0.0.1",
-            "--port", "8188",
-            "--disable-auto-launch",
-            "--disable-metadata"
-        """
+"""
 AI-Avatarka RunPod Serverless Worker Handler
 Transforms images into videos using Wan 2.1 with different effects.
 """
@@ -67,6 +32,41 @@ WORKFLOW_PATH = "/workspace/ComfyUI/workflow/universal_i2v.json"
 comfyui_process = None
 comfyui_initialized = False
 effects_data = None
+
+def ensure_sageattention():
+    """Build SageAttention if not already available (like hearmeman's start.sh)"""
+    try:
+        from sageattention import sageattn
+        logger.info("✅ SageAttention already available")
+        return True
+    except ImportError:
+        logger.info("🔧 Building SageAttention (following hearmeman's approach)...")
+        try:
+            # Clone and build like hearmeman's start.sh
+            subprocess.run([
+                "git", "clone", "https://github.com/thu-ml/SageAttention.git", "/tmp/SageAttention"
+            ], check=True)
+            
+            subprocess.run([
+                "python", "setup.py", "install"
+            ], cwd="/tmp/SageAttention", check=True)
+            
+            # Install triton like hearmeman does
+            subprocess.run([
+                "pip", "install", "--no-cache-dir", "triton"
+            ], check=True)
+            
+            # Cleanup
+            subprocess.run(["rm", "-rf", "/tmp/SageAttention"])
+            
+            # Test import
+            from sageattention import sageattn
+            logger.info("✅ SageAttention built and installed successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to build SageAttention: {e}")
+            return False
 
 def load_effects_config():
     """Load effects configuration"""
@@ -439,18 +439,9 @@ def handler(job):
 if __name__ == "__main__":
     logger.info("🚀 Initializing AI-Avatarka Worker...")
     
-    # Debug SageAttention at startup
-    try:
-        import sys
-        logger.info(f"Python path: {sys.path}")
-        import sageattention
-        logger.info(f"✅ SageAttention found at: {sageattention.__file__}")
-        from sageattention import sageattn
-        logger.info("✅ sageattn imported successfully")
-    except Exception as e:
-        logger.error(f"❌ SageAttention runtime error: {e}")
-        import traceback
-        traceback.print_exc()
+    # Build SageAttention if needed (like hearmeman's start.sh)
+    if not ensure_sageattention():
+        logger.error("❌ Failed to ensure SageAttention - worker may not function correctly")
     
     # Load effects configuration
     load_effects_config()

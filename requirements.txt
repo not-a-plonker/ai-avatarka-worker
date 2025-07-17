@@ -34,7 +34,7 @@ safetensors>=0.3.0        # ~20MB
 omegaconf>=2.3.0          # ~5MB
 einops>=0.6.0             # ~5MB
 kornia>=0.7.0             # ~100MB
-# sageattention>=1.0.0    # REMOVED - using hearmean's pre-built version
+# sageattention>=1.0.0    # REMOVED - built at runtime using hearmeman's method
 
 # Web & Async
 aiohttp>=3.8.0            # ~10MB
@@ -45,4 +45,4 @@ requests>=2.31.0          # ~5MB
 # System Utilities
 psutil>=5.9.0             # ~5MB
 
-# TOTAL: ~5GB+ installed size (SageAttention from base image)
+# TOTAL: ~5GB+ installed size (SageAttention built at runtime)
