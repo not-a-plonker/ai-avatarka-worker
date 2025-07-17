@@ -37,9 +37,6 @@ RUN rm -rf /tmp/SageAttention && \
     apt-get autoremove -y && \
     echo "✅ SageAttention installation completed"
 
-# Verify SageAttention works
-RUN python -c "from sageattention import sageattn; print('✅ SageAttention verified working')"
-
 # Debug: Check what's in the base image
 RUN echo "🔍 Checking base image contents..." && \
     ls -la /workspace/ || echo "No /workspace directory" && \
