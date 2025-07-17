@@ -1,14 +1,16 @@
 # RunPod serverless
 runpod~=1.7.9
 
-# Deep Learning & AI (HEAVY)
-torch>=2.0.1              # ~2GB
-torchvision>=0.15.0        # ~500MB
-torchaudio>=2.0.0         # ~300MB
+# Deep Learning & AI (HEAVY) - Updated for SageAttention compatibility
+torch>=2.3.0              # ~2GB - REQUIRED for SageAttention (was 2.0.1)
+torchvision>=0.18.0        # ~500MB - Updated for torch 2.3+
+torchaudio>=2.3.0         # ~300MB - Updated for torch 2.3+
+triton>=3.0.0             # ~100MB - REQUIRED for SageAttention (was missing)
 xformers>=0.0.22          # ~500MB
 diffusers>=0.18.0         # ~200MB
 transformers>=4.30.0      # ~500MB
 accelerate>=0.20.0        # ~100MB
+flash-attn>=2.0.0         # ~50MB - REQUIRED for SageAttention (was missing)
 
 # Image/Video Processing (HEAVY)
 opencv-python-headless>=4.8.0  # ~300MB
@@ -32,7 +34,7 @@ safetensors>=0.3.0        # ~20MB
 omegaconf>=2.3.0          # ~5MB
 einops>=0.6.0             # ~5MB
 kornia>=0.7.0             # ~100MB
-sageattention>=1.0.0      # ~50MB (for WanVideoWrapper sageattn mode)
+# sageattention>=1.0.0    # REMOVED - will be compiled from source in Dockerfile
 
 # Web & Async
 aiohttp>=3.8.0            # ~10MB
@@ -43,4 +45,4 @@ requests>=2.31.0          # ~5MB
 # System Utilities
 psutil>=5.9.0             # ~5MB
 
-# TOTAL: ~5GB+ installed size
+# TOTAL: ~5GB+ installed size (SageAttention compiled separately)
