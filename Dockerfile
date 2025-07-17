@@ -9,9 +9,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install dependencies
 RUN pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
 
-# Copy and install requirements (EXCLUDING sageattention)
+# Copy and install requirements (EXCLUDING sageattention AND flash-attn)
 COPY requirements.txt /tmp/requirements.txt
 RUN sed -i '/sageattention/d' /tmp/requirements.txt && \
+    sed -i '/flash-attn/d' /tmp/requirements.txt && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
