@@ -10,7 +10,7 @@ xformers>=0.0.22          # ~500MB
 diffusers>=0.18.0         # ~200MB
 transformers>=4.30.0      # ~500MB
 accelerate>=0.20.0        # ~100MB
-flash-attn>=2.0.0         # ~50MB - REQUIRED for SageAttention (was missing)
+# flash-attn>=2.0.0        # REMOVED - was causing runner crashes during compilation
 
 # Image/Video Processing (HEAVY)
 opencv-python-headless>=4.8.0  # ~300MB
@@ -34,7 +34,7 @@ safetensors>=0.3.0        # ~20MB
 omegaconf>=2.3.0          # ~5MB
 einops>=0.6.0             # ~5MB
 kornia>=0.7.0             # ~100MB
-# sageattention>=1.0.0    # REMOVED - will be compiled from source in Dockerfile
+# sageattention>=1.0.0    # REMOVED - using hearmean's pre-built version
 
 # Web & Async
 aiohttp>=3.8.0            # ~10MB
@@ -45,4 +45,4 @@ requests>=2.31.0          # ~5MB
 # System Utilities
 psutil>=5.9.0             # ~5MB
 
-# TOTAL: ~5GB+ installed size (SageAttention compiled separately)
+# TOTAL: ~5GB+ installed size (SageAttention from base image)

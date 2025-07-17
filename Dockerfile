@@ -1,4 +1,5 @@
-# AI-Avatarka - Complete fixed version with ComfyUI installation
+
+# AI-Avatarka - Use Hearmean's SageAttention method
 FROM hearmeman/comfyui-wan-template:v2
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -6,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     COMFYUI_PATH="/workspace/ComfyUI"
 
-# Install dependencies
+# Install dependencies (DON'T touch SageAttention - it's already working!)
 RUN pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
 
 # Copy and install requirements (EXCLUDING sageattention AND flash-attn)
@@ -16,26 +17,8 @@ RUN sed -i '/sageattention/d' /tmp/requirements.txt && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y git build-essential ninja-build
-
-# Clone SageAttention repo
-RUN echo "🔧 Cloning SageAttention..." && \
-    cd /tmp && \
-    git clone https://github.com/thu-ml/SageAttention.git && \
-    ls -la SageAttention/
-
-# Compile SageAttention with error capture
-RUN echo "📦 Starting SageAttention compilation..." && \
-    cd /tmp/SageAttention && \
-    python setup.py install --verbose 2>&1 | tee /tmp/sageattention_build.log || \
-    (echo "❌ SageAttention compilation failed. Build log:" && cat /tmp/sageattention_build.log && exit 1)
-
-# Clean up
-RUN rm -rf /tmp/SageAttention && \
-    apt-get remove -y build-essential ninja-build && \
-    apt-get autoremove -y && \
-    echo "✅ SageAttention installation completed"
+# Verify SageAttention still works after our installations
+RUN python -c "from sageattention import sageattn; print('✅ SageAttention still working after requirements install')"
 
 # Debug: Check what's in the base image
 RUN echo "🔍 Checking base image contents..." && \
@@ -67,13 +50,17 @@ RUN mkdir -p /workspace/ComfyUI/custom_nodes && \
     git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git && \
     git clone https://github.com/cubiq/ComfyUI_essentials.git
 
-# Install custom node requirements
+# Install custom node requirements (but skip any that try to reinstall SageAttention)
 RUN for dir in /workspace/ComfyUI/custom_nodes/*/; do \
         if [ -f "$dir/requirements.txt" ]; then \
             echo "Installing requirements for $(basename $dir)"; \
+            sed -i '/sageattention/d' "$dir/requirements.txt"; \
             pip install --no-cache-dir -r "$dir/requirements.txt"; \
         fi; \
     done
+
+# Final SageAttention verification
+RUN python -c "from sageattention import sageattn; print('✅ SageAttention still working after all installations')"
 
 # Create model directories
 RUN mkdir -p /workspace/ComfyUI/models/diffusion_models \
@@ -126,6 +113,7 @@ RUN echo "🔍 Final verification..." && \
     ls -lh /workspace/ComfyUI/models/clip_vision/ && \
     echo "LoRA files:" && ls -lh /workspace/ComfyUI/models/loras/ && \
     echo "Custom nodes:" && ls -la /workspace/ComfyUI/custom_nodes/ && \
+    python -c "from sageattention import sageattn; print('✅ SageAttention final verification passed')" && \
     echo "✅ All verified and ready!"
 
 # Clean up build files to reduce image size
