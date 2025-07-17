@@ -1,4 +1,4 @@
-# AI-Avatarka - Debug version to find the SageAttention issue
+# AI-Avatarka - Simple debug version 
 FROM hearmeman/comfyui-wan-template:v2
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -6,109 +6,76 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     COMFYUI_PATH="/workspace/ComfyUI"
 
-# STEP 1: Check what hearmeman's base image actually has
-RUN echo "🔍 DEBUGGING: What's in hearmeman's base image?" && \
-    echo "Python version:" && python --version && \
-    echo "Pip list (looking for sageattention):" && pip list | grep -i sage || echo "No sageattention found in pip list" && \
-    echo "Trying to import sageattention from base image:" && \
-    python -c "import sys; exec('try:\\n    from sageattention import sageattn\\n    print(\\\"✅ SageAttention import successful from base image\\\")\\nexcept ImportError as e:\\n    print(\\\"❌ SageAttention import failed from base image:\\\", str(e))\\nexcept Exception as e:\\n    print(\\\"❌ Other error:\\\", str(e))')" && \
-    echo "Python path:" && python -c "import sys; print('\\n'.join(sys.path))" && \
-    echo "Looking for sageattention files:" && \
-    find /usr/local/lib/python*/site-packages/ -name "*sage*" 2>/dev/null || echo "No sageattention files found"
+# STEP 1: Check base image
+RUN echo "=== STEP 1: BASE IMAGE CHECK ===" && \
+    python --version && \
+    pip list | grep -i sage || echo "No sageattention in pip list" && \
+    python -c "import sageattention; print('BASE: SageAttention found')" || echo "BASE: SageAttention NOT found" && \
+    python -c "from sageattention import sageattn; print('BASE: sageattn import works')" || echo "BASE: sageattn import FAILED"
 
-# Install dependencies
+# Install basic dependencies
 RUN pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
 
-# STEP 2: Check after installing basic deps
-RUN echo "🔍 DEBUGGING: After installing runpod/gdown..." && \
-    python -c "exec('try:\\n    from sageattention import sageattn\\n    print(\\\"✅ SageAttention still works after basic deps\\\")\\nexcept ImportError as e:\\n    print(\\\"❌ SageAttention broken after basic deps:\\\", str(e))')"
+# STEP 2: Check after basic deps
+RUN echo "=== STEP 2: AFTER BASIC DEPS ===" && \
+    python -c "from sageattention import sageattn; print('BASIC DEPS: sageattn still works')" || echo "BASIC DEPS: sageattn BROKEN"
 
-# Copy and install requirements 
+# Install your requirements
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
-# STEP 3: Check after installing your requirements
-RUN echo "🔍 DEBUGGING: After installing requirements.txt..." && \
+# STEP 3: Check after requirements
+RUN echo "=== STEP 3: AFTER REQUIREMENTS ===" && \
     pip list | grep -i sage && \
-    python -c "exec('try:\\n    from sageattention import sageattn\\n    print(\\\"✅ SageAttention works after requirements.txt\\\")\\nexcept ImportError as e:\\n    print(\\\"❌ SageAttention BROKEN after requirements.txt:\\\", str(e))\\n    print(\\\"This is likely the culprit!\\\")\\nexcept Exception as e:\\n    print(\\\"❌ Other error:\\\", str(e))')"
+    python -c "from sageattention import sageattn; print('REQUIREMENTS: sageattn still works')" || echo "REQUIREMENTS: sageattn BROKEN - THIS IS THE CULPRIT!"
 
-# STEP 4: Check what version we have now
-RUN echo "🔍 DEBUGGING: SageAttention version info..." && \
-    python -c "exec('try:\\n    import sageattention\\n    print(\\\"SageAttention available:\\\", hasattr(sageattention, \\\"sageattn\\\"))\\n    from sageattention import sageattn\\n    print(\\\"✅ sageattn import works\\\")\\nexcept Exception as e:\\n    print(\\\"Error:\\\", e)')"
-
-# Continue with the rest of your build...
-RUN echo "🔍 Checking base image contents..." && \
-    ls -la /workspace/ || echo "No /workspace directory" && \
-    find / -name "ComfyUI" -type d 2>/dev/null || echo "No ComfyUI directory found"
-
-# Ensure ComfyUI is properly installed
+# Ensure ComfyUI exists
 RUN if [ ! -f "/workspace/ComfyUI/main.py" ]; then \
-        echo "🔧 Installing ComfyUI..."; \
+        echo "Installing ComfyUI..."; \
         mkdir -p /workspace && \
         cd /workspace && \
         git clone https://github.com/comfyanonymous/ComfyUI.git && \
         cd ComfyUI && \
         pip install -r requirements.txt; \
     else \
-        echo "✅ ComfyUI already present"; \
+        echo "ComfyUI already present"; \
     fi
 
-# STEP 5: Check after ComfyUI installation
-RUN echo "🔍 DEBUGGING: After ComfyUI setup..." && \
-    python -c "
-try:
-    from sageattention import sageattn
-    print('✅ SageAttention works after ComfyUI setup')
-except ImportError as e:
-    print('❌ SageAttention broken after ComfyUI setup:', str(e))
-"
+# STEP 4: Check after ComfyUI
+RUN echo "=== STEP 4: AFTER COMFYUI ===" && \
+    python -c "from sageattention import sageattn; print('COMFYUI: sageattn still works')" || echo "COMFYUI: sageattn BROKEN"
 
-# Create custom_nodes directory and install custom nodes
+# Install custom nodes
 RUN mkdir -p /workspace/ComfyUI/custom_nodes && \
     cd /workspace/ComfyUI/custom_nodes && \
-    echo "📦 Installing custom nodes..." && \
     git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git && \
     git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git && \
     git clone https://github.com/cubiq/ComfyUI_essentials.git
+
+# STEP 5: Check after custom nodes clone
+RUN echo "=== STEP 5: AFTER CUSTOM NODES CLONE ===" && \
+    python -c "from sageattention import sageattn; print('CUSTOM CLONE: sageattn still works')" || echo "CUSTOM CLONE: sageattn BROKEN"
 
 # Install custom node requirements
 RUN for dir in /workspace/ComfyUI/custom_nodes/*/; do \
         if [ -f "$dir/requirements.txt" ]; then \
             echo "Installing requirements for $(basename $dir)"; \
+            cat "$dir/requirements.txt"; \
             pip install --no-cache-dir -r "$dir/requirements.txt"; \
         fi; \
     done
 
-# STEP 6: Check after custom nodes
-RUN echo "🔍 DEBUGGING: After custom nodes..." && \
-    python -c "exec('try:\\n    from sageattention import sageattn\\n    print(\\\"✅ SageAttention works after custom nodes\\\")\\nexcept ImportError as e:\\n    print(\\\"❌ SageAttention broken after custom nodes:\\\", str(e))\\n    print(\\\"One of the custom nodes broke it!\\\")')"
+# STEP 6: Check after custom node requirements
+RUN echo "=== STEP 6: AFTER CUSTOM NODE REQUIREMENTS ===" && \
+    python -c "from sageattention import sageattn; print('CUSTOM REQS: sageattn still works')" || echo "CUSTOM REQS: sageattn BROKEN - CUSTOM NODE REQUIREMENTS ARE THE CULPRIT!"
 
-# Create model directories
-RUN mkdir -p /workspace/ComfyUI/models/diffusion_models \
-             /workspace/ComfyUI/models/vae \
-             /workspace/ComfyUI/models/text_encoders \
-             /workspace/ComfyUI/models/clip_vision \
-             /workspace/ComfyUI/models/loras \
-             /workspace/ComfyUI/input \
-             /workspace/ComfyUI/output
+# FINAL CHECK
+RUN echo "=== FINAL CHECK ===" && \
+    pip list | grep -i sage && \
+    python -c "from sageattention import sageattn; print('FINAL: Everything works!')" || echo "FINAL: Still broken"
 
-# Copy project files
-COPY workflow/ /workspace/ComfyUI/workflow/
-COPY prompts/ /workspace/prompts/
-COPY lora/ /workspace/ComfyUI/models/loras/
-COPY builder/ /workspace/builder/
-COPY src/handler.py /workspace/src/handler.py
-
-# Skip model downloads for now to focus on SageAttention issue
-# RUN echo "📦 Downloading Wan 2.1 models..." && \
-#     ... (comment out for debugging)
-
-# FINAL TEST: Try to actually use SageAttention like the WanVideoWrapper would
-RUN echo "🔍 FINAL DEBUGGING: Testing actual SageAttention usage..." && \
-    python -c "exec('try:\\n    from sageattention import sageattn\\n    print(\\\"✅ SageAttention import successful\\\")\\n    print(\\\"✅ SageAttention ready for use\\\")\\nexcept Exception as e:\\n    print(\\\"❌ FINAL TEST FAILED:\\\", str(e))')"
-
-# Create startup script
-RUN echo '#!/usr/bin/env python3\nimport sys\nsys.path.append("/workspace/src")\nfrom handler import handler\nimport runpod\nprint("🚀 Starting AI-Avatarka handler...")\nrunpod.serverless.start({"handler": handler})' > /workspace/start.py && chmod +x /workspace/start.py
+# Create startup script for testing
+RUN echo '#!/usr/bin/env python3\nprint("Testing SageAttention at runtime...")\ntry:\n    from sageattention import sageattn\n    print("✅ SageAttention works at runtime!")\nexcept Exception as e:\n    print("❌ SageAttention failed at runtime:", e)' > /workspace/test_sage.py && chmod +x /workspace/test_sage.py
 
 WORKDIR /workspace
-CMD ["python", "/workspace/start.py"]
+CMD ["python", "/workspace/test_sage.py"]
