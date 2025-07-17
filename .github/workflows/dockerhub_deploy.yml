@@ -1,4 +1,4 @@
-name: CD - Docker Hub Deploy
+name: CD - Docker Hub Deploy 64
 
 on:
   push:
