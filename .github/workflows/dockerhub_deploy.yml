@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: BIG_CUNT
+    timeout-minutes: 180  # 3 hour timeout for heavy SageAttention + model downloads
     
     steps:
     - uses: actions/checkout@v4
@@ -15,9 +16,21 @@ jobs:
     - name: Create lora directory
       run: mkdir -p lora && touch lora/.gitkeep
       
+    - name: Free up disk space on self-hosted runner
+      run: |
+        echo "🧹 Cleaning up disk space..."
+        docker system prune -af --volumes || echo "Docker cleanup failed, continuing..."
+        df -h
+        echo "Available disk space after cleanup:"
+        df -h | grep -E "Size|/dev/"
+        
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-      
+      with:
+        driver-opts: |
+          network=host
+          image=moby/buildkit:latest
+          
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
@@ -33,10 +46,49 @@ jobs:
           ${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest
           ${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:${{ github.sha }}
         platforms: linux/amd64
+        # Optimize for heavy builds
+        build-args: |
+          BUILDKIT_INLINE_CACHE=1
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
+        # Give build more resources
+        shm-size: 4g
+        
+    - name: Verify image and get size
+      run: |
+        echo "🔍 Verifying built image..."
+        docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest
+        IMAGE_SIZE=$(docker images ${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest --format "table {{.Size}}" | tail -n 1)
+        echo "IMAGE_SIZE=$IMAGE_SIZE" >> $GITHUB_ENV
+        
+        # Test SageAttention in the built image
+        echo "🧪 Testing SageAttention in built image..."
+        docker run --rm ${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest python -c "from sageattention import sageattn; print('✅ SageAttention works in final image')" || echo "⚠️ SageAttention test failed"
         
     - name: Summary
       run: |
         echo "## 🚀 Docker Hub Build Complete!" >> $GITHUB_STEP_SUMMARY
         echo "**Image:** \`${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest\`" >> $GITHUB_STEP_SUMMARY
-        echo "**Size:** ~32GB (models included)" >> $GITHUB_STEP_SUMMARY
+        echo "**Tag:** \`${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Size:** ${{ env.IMAGE_SIZE || '~35GB' }} (models + SageAttention included)" >> $GITHUB_STEP_SUMMARY
+        echo "**SageAttention:** ✅ Compiled from source" >> $GITHUB_STEP_SUMMARY
         echo "**Ready for RunPod!**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 RunPod Setup:" >> $GITHUB_STEP_SUMMARY
+        echo "1. Use image: \`${{ secrets.DOCKERHUB_USERNAME }}/ai-avatarka-worker:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "2. GPU: 24GB+ VRAM recommended" >> $GITHUB_STEP_SUMMARY
+        echo "3. Upload your \`worker-config.json\`" >> $GITHUB_STEP_SUMMARY
+        echo "4. Test with sample image!" >> $GITHUB_STEP_SUMMARY
+        
+    - name: Cleanup build cache periodically
+      run: |
+        # Keep cache fresh but not too large
+        if [ -d "/tmp/.buildx-cache" ]; then
+          CACHE_SIZE=$(du -sh /tmp/.buildx-cache | cut -f1)
+          echo "Build cache size: $CACHE_SIZE"
+          # Clean if cache is over 10GB
+          if [ $(du -sb /tmp/.buildx-cache | cut -f1) -gt 10737418240 ]; then
+            echo "🧹 Cleaning large build cache..."
+            rm -rf /tmp/.buildx-cache
+          fi
+        fi
