@@ -34,13 +34,8 @@ RUN echo "📦 Starting SageAttention compilation..." && \
 # Clean up
 RUN rm -rf /tmp/SageAttention && \
     apt-get remove -y build-essential ninja-build && \
-    apt-get autoremove -y
-
-# Verify SageAttention works with detailed debugging
-RUN echo "🔍 Debugging SageAttention installation..." && \
-    python -c "import sys; print('Python path:', sys.path)" && \
-    python -c "import sageattention; print('✅ sageattention module imported'); print('Location:', sageattention.__file__)" || echo "❌ sageattention import failed" && \
-    python -c "from sageattention import sageattn; print('✅ sageattn imported successfully')" || echo "❌ sageattn import failed"
+    apt-get autoremove -y && \
+    echo "✅ SageAttention installation completed"
 
 # Verify SageAttention works
 RUN python -c "from sageattention import sageattn; print('✅ SageAttention verified working')"
