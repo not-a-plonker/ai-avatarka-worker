@@ -25,10 +25,11 @@ RUN echo "🔧 Cloning SageAttention..." && \
     git clone https://github.com/thu-ml/SageAttention.git && \
     ls -la SageAttention/
 
-# Compile SageAttention
+# Compile SageAttention with error capture
 RUN echo "📦 Starting SageAttention compilation..." && \
     cd /tmp/SageAttention && \
-    python setup.py install --verbose
+    python setup.py install --verbose 2>&1 | tee /tmp/sageattention_build.log || \
+    (echo "❌ SageAttention compilation failed. Build log:" && cat /tmp/sageattention_build.log && exit 1)
 
 # Clean up
 RUN rm -rf /tmp/SageAttention && \
