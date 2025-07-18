@@ -33,40 +33,111 @@ comfyui_process = None
 comfyui_initialized = False
 effects_data = None
 
-def ensure_sageattention():
-    """Build SageAttention if not already available (like hearmeman's start.sh)"""
+def build_sageattention_in_comfyui_startup():
+    """Build SageAttention when ComfyUI starts (CRITICAL: This runs when job comes in)"""
     try:
-        from sageattention import sageattn
-        logger.info("✅ SageAttention already available")
-        return True
-    except ImportError:
-        logger.info("🔧 Building SageAttention (following hearmeman's approach)...")
+        # First check if already available
         try:
-            # Clone and build like hearmeman's start.sh
-            subprocess.run([
-                "git", "clone", "https://github.com/thu-ml/SageAttention.git", "/tmp/SageAttention"
-            ], check=True)
-            
-            subprocess.run([
-                "python", "setup.py", "install"
-            ], cwd="/tmp/SageAttention", check=True)
-            
-            # Install triton like hearmeman does
-            subprocess.run([
-                "pip", "install", "--no-cache-dir", "triton"
-            ], check=True)
-            
-            # Cleanup
-            subprocess.run(["rm", "-rf", "/tmp/SageAttention"])
-            
-            # Test import
             from sageattention import sageattn
-            logger.info("✅ SageAttention built and installed successfully")
+            logger.info("✅ SageAttention already available, skipping build")
             return True
+        except ImportError:
+            pass
+        
+        logger.info("🔧 Building SageAttention (triggered by job start)...")
+        
+        # Set environment variables for compilation
+        env = os.environ.copy()
+        env.update({
+            'TORCH_CUDA_ARCH_LIST': '8.6;8.9;9.0',
+            'CUDA_VISIBLE_DEVICES': '0',
+            'MAX_JOBS': '4',
+            'NINJA_STATUS': '[%f/%t] '
+        })
+        
+        # Create temp build directory
+        build_dir = Path("/tmp/sageattention_runtime_build")
+        if build_dir.exists():
+            subprocess.run(["rm", "-rf", str(build_dir)], check=True)
+        
+        logger.info("📥 Cloning SageAttention for runtime build...")
+        subprocess.run([
+            "git", "clone", "--depth", "1",
+            "https://github.com/thu-ml/SageAttention.git",
+            str(build_dir)
+        ], check=True, env=env, timeout=120)
+        
+        # Use modern pip wheel build (avoids deprecated egg installation)
+        logger.info("🔨 Building SageAttention wheel (modern method)...")
+        
+        # Step 1: Build wheel
+        wheel_result = subprocess.run([
+            sys.executable, "-m", "pip", "wheel",
+            "--no-cache-dir",
+            "--no-deps",  # Don't reinstall existing deps
+            "--wheel-dir", "/tmp/wheels",
+            "."
+        ], cwd=str(build_dir), env=env, capture_output=True, text=True, timeout=600)
+        
+        if wheel_result.returncode != 0:
+            logger.warning("⚠️ Wheel build failed, trying direct install...")
+            logger.warning(f"Wheel STDERR: {wheel_result.stderr}")
             
-        except Exception as e:
-            logger.error(f"❌ Failed to build SageAttention: {e}")
+            # Fallback: direct pip install
+            direct_result = subprocess.run([
+                sys.executable, "-m", "pip", "install",
+                "--no-cache-dir",
+                "--force-reinstall",
+                "."
+            ], cwd=str(build_dir), env=env, capture_output=True, text=True, timeout=600)
+            
+            if direct_result.returncode != 0:
+                logger.error(f"❌ Direct install also failed:")
+                logger.error(f"STDOUT: {direct_result.stdout}")
+                logger.error(f"STDERR: {direct_result.stderr}")
+                return False
+            else:
+                logger.info("✅ Direct install succeeded")
+        else:
+            # Step 2: Install the built wheel
+            logger.info("🎯 Installing built wheel...")
+            wheel_files = list(Path("/tmp/wheels").glob("sageattention*.whl"))
+            
+            if wheel_files:
+                install_result = subprocess.run([
+                    sys.executable, "-m", "pip", "install",
+                    "--no-cache-dir",
+                    "--force-reinstall",
+                    str(wheel_files[0])
+                ], env=env, capture_output=True, text=True, timeout=120)
+                
+                if install_result.returncode != 0:
+                    logger.error(f"❌ Wheel install failed: {install_result.stderr}")
+                    return False
+                else:
+                    logger.info("✅ Wheel install succeeded")
+            else:
+                logger.error("❌ No wheel file found after build")
+                return False
+        
+        # Cleanup
+        subprocess.run(["rm", "-rf", str(build_dir), "/tmp/wheels"], check=False)
+        
+        # Critical verification
+        try:
+            from sageattention import sageattn
+            logger.info("✅ SageAttention runtime build completed and verified!")
+            return True
+        except ImportError as e:
+            logger.error(f"❌ SageAttention built but import still fails: {e}")
             return False
+            
+    except subprocess.TimeoutExpired:
+        logger.error("❌ SageAttention runtime build timed out")
+        return False
+    except Exception as e:
+        logger.error(f"❌ SageAttention runtime build error: {e}")
+        return False
 
 def load_effects_config():
     """Load effects configuration"""
@@ -81,75 +152,95 @@ def load_effects_config():
         return False
 
 def start_comfyui():
-    """Start ComfyUI server"""
+    """Start ComfyUI server - THIS IS WHERE SAGEATTENTION BUILDS WHEN JOB COMES IN"""
     global comfyui_process, comfyui_initialized
     
     if comfyui_initialized:
         return True
     
     try:
-        logger.info("🚀 Starting ComfyUI server...")
+        logger.info("🚀 Starting ComfyUI server (job triggered)...")
         
-        # BUILD SAGEATTENTION FIRST! (This is where it actually needs to happen)
-        logger.info("🔧 Ensuring SageAttention is available before ComfyUI startup...")
-        if not ensure_sageattention():
-            logger.error("❌ Failed to build SageAttention")
-            return False
+        # CRITICAL: Build SageAttention NOW when job comes in
+        logger.info("🔧 Building SageAttention at job start (this is the right time!)...")
+        if not build_sageattention_in_comfyui_startup():
+            logger.error("❌ SageAttention build failed - ComfyUI may not work")
+            # Continue anyway, maybe it will work without SageAttention
+        else:
+            logger.info("✅ SageAttention successfully built when job started")
         
-        # Give it a moment to settle
+        # Give SageAttention a moment to settle
         time.sleep(2)
         
-        # Debug SageAttention before starting ComfyUI
-        logger.info("🔍 Checking SageAttention before ComfyUI startup...")
+        # Final verification before starting ComfyUI
         try:
-            import sageattention
-            logger.info(f"✅ SageAttention available at: {sageattention.__file__}")
             from sageattention import sageattn
-            logger.info("✅ sageattn import works before ComfyUI")
-        except Exception as e:
-            logger.error(f"❌ SageAttention NOT available before ComfyUI: {e}")
-            return False
+            logger.info("✅ SageAttention verified and ready for ComfyUI")
+        except ImportError as e:
+            logger.warning(f"⚠️ SageAttention not available for ComfyUI: {e}")
+            logger.warning("ComfyUI will try to start anyway...")
         
         # Change to ComfyUI directory
         os.chdir(COMFYUI_PATH)
         
-        # Debug environment in ComfyUI directory
-        logger.info(f"🔍 Working directory: {os.getcwd()}")
-        logger.info(f"🔍 Python executable: {sys.executable}")
-        logger.info(f"🔍 PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
+        # Set environment for ComfyUI startup
+        env = os.environ.copy()
+        env.update({
+            'CUDA_VISIBLE_DEVICES': '0',
+            'PYTHONPATH': f"{COMFYUI_PATH}:{env.get('PYTHONPATH', '')}",
+            'TORCH_CUDA_ARCH_LIST': '8.6;8.9;9.0'
+        })
         
-        # Start server process
+        logger.info(f"🔍 Starting ComfyUI from: {os.getcwd()}")
+        
+        # Start ComfyUI server process
         comfyui_process = subprocess.Popen([
             sys.executable, "main.py",
             "--listen", "127.0.0.1",
             "--port", "8188",
             "--disable-auto-launch",
             "--disable-metadata"
-        ], cwd=COMFYUI_PATH)
+        ], cwd=COMFYUI_PATH, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         
-        # Wait for server to be ready
-        for i in range(120):  # Wait up to 2 minutes
+        # Wait for server to be ready with better error reporting
+        for i in range(180):  # Wait up to 3 minutes
             try:
                 response = requests.get(f"http://{COMFYUI_SERVER}/", timeout=5)
                 if response.status_code == 200:
                     comfyui_initialized = True
                     logger.info("✅ ComfyUI server started successfully")
                     
-                    # Debug SageAttention after ComfyUI starts
-                    logger.info("🔍 Checking SageAttention after ComfyUI startup...")
+                    # Final SageAttention status check
                     try:
-                        import sageattention
-                        logger.info(f"✅ SageAttention still available at: {sageattention.__file__}")
                         from sageattention import sageattn
-                        logger.info("✅ sageattn import still works after ComfyUI")
+                        logger.info("✅ SageAttention working with ComfyUI")
                     except Exception as e:
-                        logger.error(f"❌ SageAttention BROKEN after ComfyUI startup: {e}")
+                        logger.warning(f"⚠️ SageAttention status after ComfyUI start: {e}")
                     
                     return True
-            except:
+            except requests.exceptions.RequestException:
+                # Check if ComfyUI process crashed
+                if comfyui_process.poll() is not None:
+                    stdout, stderr = comfyui_process.communicate()
+                    logger.error("❌ ComfyUI process crashed during startup:")
+                    logger.error(f"STDOUT: {stdout.decode()}")
+                    logger.error(f"STDERR: {stderr.decode()}")
+                    return False
+                
                 time.sleep(1)
         
-        logger.error("❌ Failed to start ComfyUI server - timeout")
+        logger.error("❌ ComfyUI server startup timeout")
+        
+        # Get process output for debugging
+        if comfyui_process.poll() is None:
+            comfyui_process.terminate()
+            try:
+                stdout, stderr = comfyui_process.communicate(timeout=10)
+                logger.error(f"ComfyUI STDOUT: {stdout.decode()}")
+                logger.error(f"ComfyUI STDERR: {stderr.decode()}")
+            except subprocess.TimeoutExpired:
+                comfyui_process.kill()
+        
         return False
         
     except Exception as e:
@@ -368,7 +459,7 @@ def handler(job):
         if not job_input.get("image"):
             return {"error": "No image provided"}
         
-        # Initialize ComfyUI if needed
+        # Initialize ComfyUI if needed (includes SageAttention build)
         if not comfyui_initialized:
             if not start_comfyui():
                 return {"error": "Failed to start ComfyUI"}
@@ -449,22 +540,13 @@ def handler(job):
 if __name__ == "__main__":
     logger.info("🚀 Initializing AI-Avatarka Worker...")
     
-    # Build SageAttention FIRST, before anything else (like hearmeman's start.sh)
-    if not ensure_sageattention():
-        logger.error("❌ Failed to ensure SageAttention - worker may not function correctly")
-        # Continue anyway, maybe it will work
-    else:
-        # Give it a moment to settle and verify it's really available
-        time.sleep(2)
-        try:
-            from sageattention import sageattn
-            logger.info("✅ SageAttention build completed and verified working")
-        except Exception as e:
-            logger.error(f"❌ SageAttention build completed but import still fails: {e}")
-            logger.error("This will likely cause ComfyUI startup to fail")
+    # DO NOT BUILD SAGEATTENTION HERE - it must happen in start_comfyui() when job comes in
+    logger.info("ℹ️ SageAttention will be built when first job arrives")
     
     # Load effects configuration
     load_effects_config()
     
     # Start the serverless worker (ComfyUI will be started on first job)
+    logger.info("🎯 Starting RunPod serverless worker...")
+    logger.info("⏳ Waiting for jobs... (SageAttention will build on first job)")
     runpod.serverless.start({"handler": handler})
