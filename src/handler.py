@@ -1,6 +1,6 @@
 """
 AI-Avatarka RunPod Serverless Worker Handler
-Transforms images into videos using Wan 2.1 with different effects.
+Fixes Python 3.12 triton tokenization error by clearing cache
 """
 
 import runpod
@@ -14,6 +14,7 @@ import time
 import uuid
 import logging
 import requests
+import shutil
 from pathlib import Path
 from PIL import Image
 from typing import Dict, Any, Optional
@@ -33,32 +34,42 @@ comfyui_process = None
 comfyui_initialized = False
 effects_data = None
 
-def fix_triton_xformers_issue():
-    """Fix the triton tokenization error that's breaking xformers"""
+def clear_triton_cache():
+    """Clear triton cache to fix Python 3.12 tokenization errors"""
     try:
-        logger.info("🔧 Fixing triton/xformers tokenization issue...")
+        logger.info("🧹 Clearing triton cache (Python 3.12 fix)...")
         
-        # The error is in xformers triton integration - let's fix it
-        subprocess.run([
-            sys.executable, "-m", "pip", "install", "--no-cache-dir", 
-            "--force-reinstall", "triton==3.0.0"
-        ], check=True, timeout=120)
+        # Find triton cache directories
+        cache_paths = [
+            Path.home() / ".triton",
+            Path("/tmp/.triton"),
+            Path("/root/.triton"),
+            Path(os.environ.get("HOME", "/root")) / ".triton"
+        ]
         
-        # Also reinstall xformers to ensure compatibility
-        subprocess.run([
-            sys.executable, "-m", "pip", "install", "--no-cache-dir",
-            "--force-reinstall", "xformers>=0.0.22"
-        ], check=True, timeout=120)
+        cleared_count = 0
+        for cache_path in cache_paths:
+            if cache_path.exists():
+                try:
+                    shutil.rmtree(cache_path)
+                    logger.info(f"✅ Cleared triton cache: {cache_path}")
+                    cleared_count += 1
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not clear {cache_path}: {e}")
         
-        logger.info("✅ Triton/xformers reinstalled successfully")
+        if cleared_count > 0:
+            logger.info(f"✅ Cleared {cleared_count} triton cache directories")
+        else:
+            logger.info("ℹ️ No triton cache found to clear")
+        
         return True
         
     except Exception as e:
-        logger.error(f"❌ Failed to fix triton/xformers: {e}")
+        logger.warning(f"⚠️ Error clearing triton cache: {e}")
         return False
 
-def build_sageattention_in_comfyui_startup():
-    """Build SageAttention when ComfyUI starts (CRITICAL: This runs when job comes in)"""
+def build_sageattention_with_cache_fix():
+    """Build SageAttention with triton cache clearing"""
     try:
         # First check if already available
         try:
@@ -68,11 +79,10 @@ def build_sageattention_in_comfyui_startup():
         except ImportError:
             pass
         
-        logger.info("🔧 Building SageAttention (triggered by job start)...")
+        logger.info("🔧 Building SageAttention with Python 3.12 fixes...")
         
-        # Fix triton/xformers issue FIRST
-        if not fix_triton_xformers_issue():
-            logger.warning("⚠️ Triton/xformers fix failed, continuing anyway...")
+        # CRITICAL: Clear triton cache first
+        clear_triton_cache()
         
         # Set environment variables for compilation
         env = os.environ.copy()
@@ -80,91 +90,70 @@ def build_sageattention_in_comfyui_startup():
             'TORCH_CUDA_ARCH_LIST': '8.6;8.9;9.0',
             'CUDA_VISIBLE_DEVICES': '0',
             'MAX_JOBS': '4',
-            'NINJA_STATUS': '[%f/%t] '
+            'NINJA_STATUS': '[%f/%t] ',
+            # Python 3.12 specific fixes
+            'PYTHONDONTWRITEBYTECODE': '1',  # Prevent .pyc cache issues
+            'TRITON_CACHE_DIR': '/tmp/triton_build_cache'  # Use temp cache
         })
         
         # Create temp build directory
-        build_dir = Path("/tmp/sageattention_runtime_build")
+        build_dir = Path("/tmp/sageattention_python312_build")
         if build_dir.exists():
             subprocess.run(["rm", "-rf", str(build_dir)], check=True)
         
-        logger.info("📥 Cloning SageAttention for runtime build...")
+        # Also create clean triton cache dir
+        triton_cache = Path("/tmp/triton_build_cache")
+        if triton_cache.exists():
+            subprocess.run(["rm", "-rf", str(triton_cache)], check=True)
+        triton_cache.mkdir(parents=True, exist_ok=True)
+        
+        logger.info("📥 Cloning SageAttention...")
         subprocess.run([
             "git", "clone", "--depth", "1",
             "https://github.com/thu-ml/SageAttention.git",
             str(build_dir)
         ], check=True, env=env, timeout=120)
         
-        # Use modern pip wheel build (avoids deprecated egg installation)
-        logger.info("🔨 Building SageAttention wheel (modern method)...")
+        # Build with clean environment
+        logger.info("🔨 Building SageAttention (with Python 3.12 tokenization fix)...")
         
-        # Step 1: Build wheel
-        wheel_result = subprocess.run([
-            sys.executable, "-m", "pip", "wheel",
+        result = subprocess.run([
+            sys.executable, "-m", "pip", "install",
             "--no-cache-dir",
-            "--no-deps",  # Don't reinstall existing deps
-            "--wheel-dir", "/tmp/wheels",
+            "--force-reinstall",  # Important for cache issues
             "."
         ], cwd=str(build_dir), env=env, capture_output=True, text=True, timeout=600)
         
-        if wheel_result.returncode != 0:
-            logger.warning("⚠️ Wheel build failed, trying direct install...")
-            logger.warning(f"Wheel STDERR: {wheel_result.stderr}")
-            
-            # Fallback: direct pip install
-            direct_result = subprocess.run([
-                sys.executable, "-m", "pip", "install",
-                "--no-cache-dir",
-                "--force-reinstall",
-                "."
-            ], cwd=str(build_dir), env=env, capture_output=True, text=True, timeout=600)
-            
-            if direct_result.returncode != 0:
-                logger.error(f"❌ Direct install also failed:")
-                logger.error(f"STDOUT: {direct_result.stdout}")
-                logger.error(f"STDERR: {direct_result.stderr}")
-                return False
-            else:
-                logger.info("✅ Direct install succeeded")
+        if result.returncode != 0:
+            logger.error(f"❌ SageAttention build failed:")
+            logger.error(f"STDOUT: {result.stdout}")
+            logger.error(f"STDERR: {result.stderr}")
+            return False
         else:
-            # Step 2: Install the built wheel
-            logger.info("🎯 Installing built wheel...")
-            wheel_files = list(Path("/tmp/wheels").glob("sageattention*.whl"))
-            
-            if wheel_files:
-                install_result = subprocess.run([
-                    sys.executable, "-m", "pip", "install",
-                    "--no-cache-dir",
-                    "--force-reinstall",
-                    str(wheel_files[0])
-                ], env=env, capture_output=True, text=True, timeout=120)
-                
-                if install_result.returncode != 0:
-                    logger.error(f"❌ Wheel install failed: {install_result.stderr}")
-                    return False
-                else:
-                    logger.info("✅ Wheel install succeeded")
-            else:
-                logger.error("❌ No wheel file found after build")
-                return False
+            logger.info("✅ SageAttention build succeeded")
+            if "DEPRECATION:" in result.stdout:
+                logger.info("ℹ️ Deprecation warning shown (this is harmless)")
         
         # Cleanup
-        subprocess.run(["rm", "-rf", str(build_dir), "/tmp/wheels"], check=False)
+        subprocess.run(["rm", "-rf", str(build_dir), str(triton_cache)], check=False)
         
-        # Critical verification
+        # Clear triton cache again after build
+        clear_triton_cache()
+        
+        # Verification
         try:
             from sageattention import sageattn
-            logger.info("✅ SageAttention runtime build completed and verified!")
+            logger.info("✅ SageAttention Python 3.12 build completed and verified!")
             return True
         except ImportError as e:
-            logger.error(f"❌ SageAttention built but import still fails: {e}")
+            logger.error(f"❌ SageAttention built but import failed: {e}")
             return False
             
     except subprocess.TimeoutExpired:
-        logger.error("❌ SageAttention runtime build timed out")
+        logger.error("❌ SageAttention build timed out")
         return False
     except Exception as e:
-        logger.error(f"❌ SageAttention runtime build error: {e}")
+        logger.error(f"❌ SageAttention build error: {e}")
         return False
 
 def load_effects_config():
@@ -180,48 +169,40 @@ def load_effects_config():
         return False
 
 def start_comfyui():
-    """Start ComfyUI server - THIS IS WHERE SAGEATTENTION BUILDS WHEN JOB COMES IN"""
+    """Start ComfyUI server - build SageAttention when job comes in"""
     global comfyui_process, comfyui_initialized
     
     if comfyui_initialized:
         return True
     
     try:
-        logger.info("🚀 Starting ComfyUI server (job triggered)...")
+        logger.info("🚀 Starting ComfyUI server (Python 3.12 compatible)...")
         
-        # CRITICAL: Build SageAttention NOW when job comes in
-        logger.info("🔧 Building SageAttention at job start (this is the right time!)...")
-        if not build_sageattention_in_comfyui_startup():
-            logger.error("❌ SageAttention build failed - ComfyUI may not work")
-            # Continue anyway, maybe it will work without SageAttention
-        else:
-            logger.info("✅ SageAttention successfully built when job started")
+        # Build SageAttention with cache fixes
+        logger.info("🔧 Building SageAttention with Python 3.12 compatibility fixes...")
+        if not build_sageattention_with_cache_fix():
+            logger.warning("⚠️ SageAttention build failed - will use fallback attention")
+            # Don't fail completely, try to continue without SageAttention
         
-        # Give SageAttention a moment to settle
-        time.sleep(2)
+        # Clear cache one more time before starting ComfyUI
+        clear_triton_cache()
         
-        # Final verification before starting ComfyUI
-        try:
-            from sageattention import sageattn
-            logger.info("✅ SageAttention verified and ready for ComfyUI")
-        except ImportError as e:
-            logger.warning(f"⚠️ SageAttention not available for ComfyUI: {e}")
-            logger.warning("ComfyUI will try to start anyway...")
+        # Give it a moment
+        time.sleep(3)
         
-        # Change to ComfyUI directory
+        # Start ComfyUI
         os.chdir(COMFYUI_PATH)
         
-        # Set environment for ComfyUI startup
         env = os.environ.copy()
         env.update({
             'CUDA_VISIBLE_DEVICES': '0',
             'PYTHONPATH': f"{COMFYUI_PATH}:{env.get('PYTHONPATH', '')}",
-            'TORCH_CUDA_ARCH_LIST': '8.6;8.9;9.0'
+            'PYTHONDONTWRITEBYTECODE': '1',  # Prevent cache issues
+            'TRITON_CACHE_DIR': '/tmp/triton_runtime'  # Clean runtime cache
         })
         
-        logger.info(f"🔍 Starting ComfyUI from: {os.getcwd()}")
+        logger.info("🔍 Starting ComfyUI with Python 3.12 fixes...")
         
-        # Start ComfyUI server process
         comfyui_process = subprocess.Popen([
             sys.executable, "main.py",
             "--listen", "127.0.0.1",
@@ -230,49 +211,37 @@ def start_comfyui():
             "--disable-metadata"
         ], cwd=COMFYUI_PATH, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         
-        # Wait for server to be ready with better error reporting
-        for i in range(180):  # Wait up to 3 minutes
+        # Wait for server
+        for i in range(180):
             try:
                 response = requests.get(f"http://{COMFYUI_SERVER}/", timeout=5)
                 if response.status_code == 200:
                     comfyui_initialized = True
                     logger.info("✅ ComfyUI server started successfully")
                     
-                    # Final SageAttention status check
+                    # Check SageAttention status
                     try:
                         from sageattention import sageattn
                         logger.info("✅ SageAttention working with ComfyUI")
                     except Exception as e:
-                        logger.warning(f"⚠️ SageAttention status after ComfyUI start: {e}")
+                        logger.warning(f"⚠️ SageAttention not available: {e}")
+                        logger.info("ComfyUI will use fallback attention")
                     
                     return True
             except requests.exceptions.RequestException:
-                # Check if ComfyUI process crashed
                 if comfyui_process.poll() is not None:
                     stdout, stderr = comfyui_process.communicate()
-                    logger.error("❌ ComfyUI process crashed during startup:")
+                    logger.error("❌ ComfyUI crashed:")
                     logger.error(f"STDOUT: {stdout.decode()}")
                     logger.error(f"STDERR: {stderr.decode()}")
                     return False
-                
                 time.sleep(1)
         
-        logger.error("❌ ComfyUI server startup timeout")
-        
-        # Get process output for debugging
-        if comfyui_process.poll() is None:
-            comfyui_process.terminate()
-            try:
-                stdout, stderr = comfyui_process.communicate(timeout=10)
-                logger.error(f"ComfyUI STDOUT: {stdout.decode()}")
-                logger.error(f"ComfyUI STDERR: {stderr.decode()}")
-            except subprocess.TimeoutExpired:
-                comfyui_process.kill()
-        
+        logger.error("❌ ComfyUI startup timeout")
         return False
         
     except Exception as e:
-        logger.error(f"❌ Error starting ComfyUI server: {str(e)}")
+        logger.error(f"❌ Error starting ComfyUI: {str(e)}")
         return False
 
 def load_workflow():
@@ -289,19 +258,15 @@ def load_workflow():
 def process_input_image(image_data: str) -> Optional[str]:
     """Process and save input image"""
     try:
-        # Handle data URL format
         if image_data.startswith("data:image"):
             image_data = image_data.split(",")[1]
         
-        # Decode base64 image
         image_bytes = base64.b64decode(image_data)
         image = Image.open(io.BytesIO(image_bytes))
         
-        # Convert to RGB if necessary
         if image.mode != "RGB":
             image = image.convert("RGB")
         
-        # Save to ComfyUI input directory
         input_dir = Path(COMFYUI_PATH) / "input"
         input_dir.mkdir(exist_ok=True)
         
@@ -323,7 +288,6 @@ def customize_workflow(workflow: Dict, params: Dict) -> Dict:
         effect = params.get("effect", "ghostrider")
         effect_config = effects_data["effects"].get(effect, effects_data["effects"]["ghostrider"])
         
-        # Work with API format: {node_id: {inputs: {}, class_type: ""}}
         for node_id, node_data in workflow.items():
             if not isinstance(node_data, dict):
                 continue
@@ -331,13 +295,11 @@ def customize_workflow(workflow: Dict, params: Dict) -> Dict:
             class_type = node_data.get("class_type", "")
             inputs = node_data.get("inputs", {})
             
-            # Update LoadImage node (Node 18) - replace PLACEHOLDER_IMAGE
             if class_type == "LoadImage":
                 if inputs.get("image") == "PLACEHOLDER_IMAGE":
                     inputs["image"] = params["image_filename"]
                     logger.info(f"✅ Updated LoadImage with: {params['image_filename']}")
             
-            # Update WanVideoTextEncode (Node 16) - replace prompts
             elif class_type == "WanVideoTextEncode":
                 if inputs.get("positive_prompt") == "PLACEHOLDER_PROMPT":
                     inputs["positive_prompt"] = params.get("prompt", effect_config["prompt"])
@@ -347,33 +309,40 @@ def customize_workflow(workflow: Dict, params: Dict) -> Dict:
                     inputs["negative_prompt"] = params.get("negative_prompt", effect_config["negative_prompt"])
                     logger.info(f"✅ Updated negative prompt for effect: {effect}")
             
-            # Update WanVideoLoraSelect (Node 41) - replace PLACEHOLDER_LORA
             elif class_type == "WanVideoLoraSelect":
                 if inputs.get("lora_name") == "PLACEHOLDER_LORA":
                     lora_filename = effect_config["lora"]
                     inputs["lora_name"] = lora_filename
-                    inputs["lora"] = lora_filename  # Set both inputs to the same filename
+                    inputs["lora"] = lora_filename
                     inputs["strength"] = effect_config.get("lora_strength", 1.0)
                     logger.info(f"✅ Updated LoRA: {lora_filename} (strength: {inputs['strength']})")
             
-            # Update WanVideoSampler (Node 27) - handle seed properly
             elif class_type == "WanVideoSampler":
-                # Handle seed - use random if -1
                 seed_value = params.get("seed", -1)
                 if seed_value == -1:
-                    seed_value = int(time.time() * 1000) % (2**31)  # Generate random seed
+                    seed_value = int(time.time() * 1000) % (2**31)
                 inputs["seed"] = seed_value
                 logger.info(f"✅ Updated seed: {seed_value}")
                 
-                # Update other sampler parameters if provided
                 if "steps" in params and params["steps"] != 10:
                     inputs["steps"] = params["steps"]
-                    
                 if "cfg" in params and params["cfg"] != 6:
                     inputs["cfg"] = params["cfg"]
-                    
                 if "frames" in params and params["frames"] != 85:
                     inputs["frames"] = params["frames"]
+            
+            # FALLBACK: If SageAttention failed, disable it in WanVideoModelLoader
+            elif class_type == "WanVideoModelLoader":
+                try:
+                    from sageattention import sageattn
+                    # Keep sageattn if available
+                    if inputs.get("attention_mode") == "sageattn":
+                        logger.info("✅ Using SageAttention for model loading")
+                except ImportError:
+                    # Disable SageAttention if not available
+                    if inputs.get("attention_mode") == "sageattn":
+                        inputs["attention_mode"] = "disabled"
+                        logger.warning("⚠️ Disabled SageAttention in workflow (Python 3.12 compatibility)")
         
         logger.info(f"✅ Workflow customized for effect: {effect}")
         return workflow
@@ -425,7 +394,6 @@ def wait_for_completion(prompt_id: str, timeout: int = 600) -> Optional[str]:
                 if prompt_id in history:
                     outputs = history[prompt_id].get("outputs", {})
                     
-                    # Look for video output from VHS_VideoCombine node (Node 30)
                     for node_id, output in outputs.items():
                         if "videos" in output:
                             videos = output["videos"]
@@ -434,7 +402,6 @@ def wait_for_completion(prompt_id: str, timeout: int = 600) -> Optional[str]:
                                 filename = video_info.get("filename")
                                 subfolder = video_info.get("subfolder", "")
                                 
-                                # Construct full path
                                 output_dir = Path(COMFYUI_PATH) / "output"
                                 if subfolder:
                                     output_dir = output_dir / subfolder
@@ -444,7 +411,6 @@ def wait_for_completion(prompt_id: str, timeout: int = 600) -> Optional[str]:
                                     logger.info(f"✅ Video generated: {filename}")
                                     return str(video_path)
                     
-                    # Check if execution failed
                     status = history[prompt_id].get("status", {})
                     if status.get("status_str") == "error":
                         error_messages = status.get("messages", [])
@@ -478,36 +444,29 @@ def encode_video_to_base64(video_path: str) -> Optional[str]:
 def handler(job):
     """Main handler function - entry point for RunPod jobs"""
     try:
-        logger.info("🎬 Starting AI-Avatarka job processing")
+        logger.info("🎬 Starting AI-Avatarka job processing (Python 3.12 compatible)")
         
-        # Get job input
         job_input = job.get("input", {})
         
-        # Validate required inputs
         if not job_input.get("image"):
             return {"error": "No image provided"}
         
-        # Initialize ComfyUI if needed (includes SageAttention build)
         if not comfyui_initialized:
             if not start_comfyui():
                 return {"error": "Failed to start ComfyUI"}
         
-        # Load effects config if needed
         if effects_data is None:
             if not load_effects_config():
                 return {"error": "Failed to load effects configuration"}
         
-        # Process input image
         image_filename = process_input_image(job_input["image"])
         if not image_filename:
             return {"error": "Failed to process input image"}
         
-        # Load workflow
         workflow = load_workflow()
         if not workflow:
             return {"error": "Failed to load workflow"}
         
-        # Prepare parameters
         params = {
             "image_filename": image_filename,
             "effect": job_input.get("effect", "ghostrider"),
@@ -524,25 +483,21 @@ def handler(job):
         
         logger.info(f"🎭 Processing effect: {params['effect']}")
         
-        # Customize workflow
         workflow = customize_workflow(workflow, params)
         
-        # Submit workflow
         prompt_id = submit_workflow(workflow)
         if not prompt_id:
             return {"error": "Failed to submit workflow"}
         
-        # Wait for completion
         video_path = wait_for_completion(prompt_id)
         if not video_path:
             return {"error": "Video generation failed or timed out"}
         
-        # Encode video to base64
         video_base64 = encode_video_to_base64(video_path)
         if not video_base64:
             return {"error": "Failed to encode output video"}
         
-        # Clean up input image
+        # Clean up
         try:
             input_path = Path(COMFYUI_PATH) / "input" / image_filename
             if input_path.exists():
@@ -551,7 +506,6 @@ def handler(job):
         except:
             pass
         
-        # Return success response
         return {
             "video": video_base64,
             "effect": params["effect"],
@@ -566,15 +520,11 @@ def handler(job):
 
 # Initialize on startup
 if __name__ == "__main__":
-    logger.info("🚀 Initializing AI-Avatarka Worker...")
+    logger.info("🚀 Initializing AI-Avatarka Worker (Python 3.12 Compatible)...")
+    logger.info("ℹ️ Triton cache will be cleared on first job to fix tokenization errors")
     
-    # DO NOT BUILD SAGEATTENTION HERE - it must happen in start_comfyui() when job comes in
-    logger.info("ℹ️ SageAttention will be built when first job arrives")
-    
-    # Load effects configuration
     load_effects_config()
     
-    # Start the serverless worker (ComfyUI will be started on first job)
     logger.info("🎯 Starting RunPod serverless worker...")
-    logger.info("⏳ Waiting for jobs... (SageAttention will build on first job)")
+    logger.info("⏳ Ready for jobs...")
     runpod.serverless.start({"handler": handler})
