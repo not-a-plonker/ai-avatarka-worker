@@ -1,62 +1,26 @@
-# RunPod serverless
+# AI-Avatarka RunPod Serverless - Minimal requirements for hearmeman base
+# 
+# CRITICAL: We're using hearmeman/comfyui-wan-template:v2 as base image
+# This base already has: torch, triton, xformers, numpy, ComfyUI, etc.
+# 
+# We should ONLY add what's needed for RunPod serverless functionality
+# Installing conflicting versions will recreate the dependency hell from logs
+
+# RunPod serverless (ONLY thing we need)
 runpod~=1.7.9
 
-# Deep Learning & AI - FIXED VERSIONS based on logs analysis
-# Your logs showed conflicts with torch 2.4.1->2.7.1, so we lock to stable versions
-torch==2.4.1              # LOCKED - prevents logs conflicts
-torchvision==0.19.1       # LOCKED - matches torch 2.4.1 exactly  
-torchaudio==2.4.1         # LOCKED - matches torch version
-triton==3.0.0             # LOCKED - prevents tokenization errors from logs
-xformers==0.0.26.post1    # LOCKED - compatible with torch 2.4.1
-diffusers>=0.21.0,<0.30.0 # Safe range
-transformers>=4.30.0,<4.45.0 # Safe range without conflicts
-accelerate>=0.20.0,<0.30.0    # Safe range
+# Google Drive downloads for LoRA files
+gdown>=5.0.0
 
-# Image/Video Processing - SAFE VERSIONS
-opencv-python-headless>=4.8.0  # ~300MB
-pillow>=10.0.0            # ~10MB
-numpy==1.26.4             # LOCKED - prevents conflicts with scipy/cupy/mediapipe/numba from logs
-imageio>=2.31.0           # ~20MB
-imageio-ffmpeg>=0.4.8     # ~50MB
-av>=10.0.0                # ~100MB
-
-# Audio Processing
-soundfile>=0.12.0         # ~50MB
-librosa>=0.10.0           # ~100MB
-
-# Scientific Computing - COMPATIBLE VERSIONS
-scipy>=1.11.0,<1.14.0    # Matches numpy 1.26.4
-scikit-image>=0.21.0      # ~150MB
-matplotlib>=3.7.0         # ~100MB
-
-# ComfyUI Dependencies
-safetensors>=0.3.0        # ~20MB
-omegaconf>=2.3.0          # ~5MB
-einops>=0.6.0             # ~5MB
-kornia>=0.7.0             # ~100MB
-
-# Web & Async
-aiohttp>=3.8.0            # ~10MB
-aiofiles>=23.0.0          # ~5MB
-websocket-client>=1.6.0   # ~5MB
-requests>=2.31.0          # ~5MB
-
-# System Utilities
-psutil>=5.9.0             # ~5MB
-
-# Build tools (needed for SageAttention compilation)
-ninja>=1.10.0             # ~5MB
-packaging>=21.0           # ~5MB
-wheel>=0.37.0             # ~5MB
-setuptools>=65.0          # ~10MB
-
-# Google Drive downloads
-gdown>=5.0.0              # ~5MB
-
-# IMPORTANT: SageAttention will be built at RUNTIME to avoid dependency conflicts
-# The logs showed that pre-building SageAttention caused massive dependency chain issues:
-# - torch version conflicts (2.4.1 -> 2.7.1)
-# - numpy incompatibilities (1.26.4 -> 2.3.1) 
-# - triton tokenization errors (3.0.0 -> 3.3.1)
+# That's it! Everything else comes from hearmeman's base image
 # 
-# Runtime building with dependency isolation prevents these cascading failures
+# DO NOT ADD:
+# - torch (base image has it)
+# - triton (base image has it) 
+# - xformers (base image has it)
+# - numpy (base image has it)
+# - opencv-python (base image likely has it)
+# - Any ML/AI libraries (base image has them)
+#
+# The whole point of using hearmeman's base is to get a working environment
+# Adding more dependencies defeats the purpose and recreates conflicts

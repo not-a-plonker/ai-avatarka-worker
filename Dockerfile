@@ -1,39 +1,73 @@
-# AI-Avatarka - Keep your existing base image, fix only the specific issues
-# TODO: Replace with your actual base image from working setup
+# AI-Avatarka - Use hearmeman base but keep all our models and build process
 FROM hearmeman/comfyui-wan-template:v2
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_PREFER_BINARY=1 \
     PYTHONUNBUFFERED=1 \
-    COMFYUI_PATH="/workspace/ComfyUI" \
     PYTHONDONTWRITEBYTECODE=1
 
-# Only install what we need for the fixes
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# Install ONLY RunPod serverless - DON'T TOUCH ANYTHING ELSE
+RUN pip install --no-cache-dir --no-deps runpod~=1.7.9
 
-# Copy project files
-COPY requirements.txt /workspace/requirements.txt
+# Copy our project files
 COPY src/ /workspace/src/
 COPY builder/ /workspace/builder/
 COPY prompts/ /workspace/prompts/
 COPY workflow/ /workspace/workflow/
 COPY worker-config.json /workspace/
 
-# CRITICAL FIX: Install dependencies without breaking existing versions
-# Your logs showed runtime reinstallation caused conflicts, so we prevent that
-RUN echo "🔧 Installing only safe dependencies that don't conflict with base image..." && \
-    pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
+# Create ComfyUI directory structure for our models
+RUN mkdir -p /workspace/ComfyUI/models/{diffusion_models,vae,text_encoders,clip_vision,loras,controlnet,upscale_models} \
+    /workspace/ComfyUI/{input,output,workflow}
 
-# Keep existing ComfyUI installation or install if missing
-RUN if [ ! -f "/workspace/ComfyUI/main.py" ]; then \
-        echo "🔧 Installing ComfyUI..."; \
-        cd /workspace && \
-        git clone https://github.com/comfyanonymous/ComfyUI.git && \
-        cd ComfyUI && \
-        pip install --no-cache-dir -r requirements.txt; \
-    else \
-        echo "✅ ComfyUI already present in base image"; \
-    fi
+# Download YOUR models (not assuming they exist in base image)
+RUN echo "📦 Downloading OUR Wan 2.1 models..." && \
+    cd /workspace/ComfyUI/models && \
+    \
+    wget --progress=dot:giga -O diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors \
+    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors" && \
+    \
+    wget --progress=dot:giga -O vae/wan_2.1_vae.safetensors \
+    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors" && \
+    \
+    wget --progress=dot:giga -O text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors \
+    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors" && \
+    \
+    wget --progress=dot:giga -O clip_vision/clip_vision_h.safetensors \
+    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors" && \
+    \
+    echo "✅ Core models downloaded"
+
+# Install gdown for LoRA downloads
+RUN pip install --no-cache-dir --no-deps gdown>=5.0.0
+
+# Download LoRA files using our script
+RUN echo "🎭 Downloading LoRA files..." && \
+    python /workspace/builder/download_models.py && \
+    echo "✅ LoRA files downloaded"
+
+# Copy our workflow to ComfyUI
+RUN cp /workspace/workflow/* /workspace/ComfyUI/workflow/ 2>/dev/null || echo "No workflow files to copy"
+
+# DON'T build SageAttention here - keep it at job runtime like start.sh
+RUN echo "⚠️ SageAttention will be built at job runtime (like hearmeman's start.sh)"
+
+# Create startup script that follows hearmeman's pattern
+RUN echo '#!/usr/bin/env python3\n\
+import sys\n\
+sys.path.append("/workspace/src")\n\
+from handler import handler\n\
+import runpod\n\
+\n\
+print("🚀 Starting AI-Avatarka handler with hearmeman base...")\n\
+print("🔧 SageAttention will build at job time")\n\
+print("🎯 ComfyUI will start with --use-sage-attention flag")\n\
+\n\
+runpod.serverless.start({"handler": handler})' > /workspace/start.py && \
+    chmod +x /workspace/start.py
+
+WORKDIR /workspace
+CMD ["python", "/workspace/start.py"]
 
 # Create ComfyUI directory structure
 RUN mkdir -p /workspace/ComfyUI/models/{diffusion_models,vae,text_encoders,clip_vision,loras,controlnet,upscale_models} \

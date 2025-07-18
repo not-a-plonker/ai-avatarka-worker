@@ -23,11 +23,11 @@ from typing import Dict, Any, Optional
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Constants
-COMFYUI_PATH = "/workspace/ComfyUI"
+# Constants - Use base image paths
+COMFYUI_PATH = "/workspace/ComfyUI"  # Base image ComfyUI location
 COMFYUI_SERVER = "127.0.0.1:8188"
-EFFECTS_CONFIG = "/workspace/prompts/effects.json"
-WORKFLOW_PATH = "/workspace/ComfyUI/workflow/universal_i2v.json"
+EFFECTS_CONFIG = "/workspace/ai-avatarka/prompts/effects.json"  # Our config
+WORKFLOW_PATH = "/workspace/ai-avatarka/workflow/universal_i2v.json"  # Our workflow
 
 # Global state
 comfyui_process = None
@@ -69,9 +69,9 @@ def clear_triton_cache():
         return False
 
 def build_sageattention_with_cache_fix():
-    """Build SageAttention - AVOID RUNTIME DEPENDENCY CONFLICTS FROM LOGS"""
+    """Build SageAttention at job time - EXACTLY like hearmeman's start.sh"""
     try:
-        # CRITICAL: Check if already available first
+        # Check if already available first
         try:
             from sageattention import sageattn
             logger.info("✅ SageAttention already available, skipping build")
@@ -79,34 +79,31 @@ def build_sageattention_with_cache_fix():
         except ImportError:
             pass
         
-        logger.info("🔧 Building SageAttention with FIXED dependency management...")
+        logger.info("🔧 Building SageAttention at job time (like hearmeman's start.sh)...")
         
-        # CRITICAL: DON'T reinstall triton/torch/xformers at runtime like the logs show
-        # This caused massive dependency conflicts in your logs:
-        # - torch 2.4.1 -> 2.7.1 (incompatible with torchaudio/torchvision)
-        # - numpy 2.3.1 (incompatible with scipy, cupy, mediapipe, numba)
-        # - triton 3.0.0 -> 3.3.1 (caused tokenization errors)
-        
-        logger.info("⚠️ AVOIDING dependency reinstallation that caused failures in logs")
-        logger.info("📋 Using existing torch/triton versions to prevent conflicts")
-        
-        # Clear triton cache without reinstalling anything
+        # Clear triton cache like hearmeman does
         clear_triton_cache()
         
-        # Set minimal environment for compilation
+        # Use hearmeman's build environment setup
         env = os.environ.copy()
         env.update({
             'TORCH_CUDA_ARCH_LIST': '8.6;8.9;9.0',
             'CUDA_VISIBLE_DEVICES': '0',
-            'MAX_JOBS': '2',  # Reduced to prevent memory issues
+            'MAX_JOBS': '4',
+            'NINJA_STATUS': '[%f/%t] ',
             'PYTHONDONTWRITEBYTECODE': '1',
             'TRITON_CACHE_DIR': '/tmp/triton_build_cache'
         })
         
-        # Create temp build directory
-        build_dir = Path("/tmp/sageattention_build_fixed")
+        # Create build directory like hearmeman
+        build_dir = Path("/tmp/sageattention_build")
         if build_dir.exists():
             subprocess.run(["rm", "-rf", str(build_dir)], check=True)
+        
+        triton_cache = Path("/tmp/triton_build_cache")
+        if triton_cache.exists():
+            subprocess.run(["rm", "-rf", str(triton_cache)], check=True)
+        triton_cache.mkdir(parents=True, exist_ok=True)
         
         logger.info("📥 Cloning SageAttention...")
         subprocess.run([
@@ -115,44 +112,32 @@ def build_sageattention_with_cache_fix():
             str(build_dir)
         ], check=True, env=env, timeout=120)
         
-        # Build WITHOUT touching existing dependencies
-        logger.info("🔨 Building SageAttention (preserving existing dependencies)...")
+        # Build using hearmeman's method (setup.py install)
+        logger.info("🔨 Building SageAttention (hearmeman's method)...")
         
         result = subprocess.run([
-            sys.executable, "setup.py", "build_ext", "--inplace"
+            sys.executable, "setup.py", "install"
         ], cwd=str(build_dir), env=env, capture_output=True, text=True, timeout=600)
-        
-        if result.returncode != 0:
-            logger.warning(f"⚠️ setup.py build failed, trying pip install...")
-            # Try pip install as last resort but without --force-reinstall
-            result = subprocess.run([
-                sys.executable, "-m", "pip", "install",
-                "--no-cache-dir",
-                "--no-deps",  # CRITICAL: Don't install dependencies
-                "."
-            ], cwd=str(build_dir), env=env, capture_output=True, text=True, timeout=600)
         
         if result.returncode != 0:
             logger.error(f"❌ SageAttention build failed:")
             logger.error(f"STDOUT: {result.stdout}")
             logger.error(f"STDERR: {result.stderr}")
-            logger.warning("⚠️ Will continue without SageAttention")
             return False
         else:
             logger.info("✅ SageAttention build succeeded")
         
-        # Cleanup
-        subprocess.run(["rm", "-rf", str(build_dir)], check=False)
+        # Cleanup like hearmeman
+        subprocess.run(["rm", "-rf", str(build_dir), str(triton_cache)], check=False)
         clear_triton_cache()
         
         # Verification
         try:
             from sageattention import sageattn
-            logger.info("✅ SageAttention verified and ready!")
+            logger.info("✅ SageAttention job-time build completed!")
             return True
         except ImportError as e:
-            logger.warning(f"⚠️ SageAttention import failed: {e}")
-            logger.info("Will continue without SageAttention")
+            logger.error(f"❌ SageAttention import failed: {e}")
             return False
             
     except subprocess.TimeoutExpired:
@@ -175,24 +160,24 @@ def load_effects_config():
         return False
 
 def start_comfyui():
-    """Start ComfyUI server - FIXED based on logs analysis"""
+    """Start ComfyUI - EXACTLY like hearmeman's start.sh with --use-sage-attention"""
     global comfyui_process, comfyui_initialized
     
     if comfyui_initialized:
         return True
     
     try:
-        logger.info("🚀 Starting ComfyUI server (FIXED from logs analysis)...")
+        logger.info("🚀 Starting ComfyUI like hearmeman's start.sh...")
         
-        # Build SageAttention WITHOUT dependency conflicts
-        logger.info("🔧 Building SageAttention (avoiding dependency conflicts from logs)...")
-        sage_available = build_sageattention_with_cache_fix()
+        # Build SageAttention at job time like hearmeman does
+        logger.info("🔧 Building SageAttention at job start (hearmeman's pattern)...")
+        sage_built = build_sageattention_with_cache_fix()
         
-        # Clear cache one more time
+        # Clear cache like hearmeman
         clear_triton_cache()
-        time.sleep(2)
+        time.sleep(3)
         
-        # Start ComfyUI with proper environment
+        # Start ComfyUI from base image location
         os.chdir(COMFYUI_PATH)
         
         env = os.environ.copy()
@@ -203,24 +188,21 @@ def start_comfyui():
             'TRITON_CACHE_DIR': '/tmp/triton_runtime'
         })
         
-        # CRITICAL: Start ComfyUI command based on working script
+        # CRITICAL: Follow hearmeman's exact startup pattern with --use-sage-attention
+        # From hearmeman's start.sh:
+        # python3 "$NETWORK_VOLUME/ComfyUI/main.py" --listen --use-sage-attention
+        
         cmd = [
             sys.executable, "main.py",
             "--listen", "127.0.0.1",
-            "--port", "8188",
-            "--disable-auto-launch",
-            "--disable-metadata"
+            "--port", "8188"
         ]
         
-        # CRITICAL: Only add SageAttention flag if build succeeded 
-        # Your logs show ComfyUI crashed with torchvision::nms error after SageAttention
-        if sage_available:
-            cmd.append("--use-sage-attention")
-            logger.info("🚀 Starting ComfyUI WITH SageAttention enabled")
-        else:
-            logger.info("🚀 Starting ComfyUI WITHOUT SageAttention (build issues)")
+        # ALWAYS add --use-sage-attention like hearmeman does
+        cmd.append("--use-sage-attention")
+        logger.info("🚀 Starting ComfyUI WITH --use-sage-attention (hearmeman's pattern)")
         
-        logger.info(f"🔍 ComfyUI startup command: {' '.join(cmd)}")
+        logger.info(f"🔍 ComfyUI command: {' '.join(cmd)}")
         
         comfyui_process = subprocess.Popen(
             cmd,
@@ -230,21 +212,21 @@ def start_comfyui():
             stderr=subprocess.PIPE
         )
         
-        # Wait for server with improved error handling
-        for i in range(180):  # 3 minute timeout
+        # Wait for server like hearmeman
+        for i in range(180):
             try:
                 response = requests.get(f"http://{COMFYUI_SERVER}/", timeout=5)
                 if response.status_code == 200:
                     comfyui_initialized = True
-                    logger.info("✅ ComfyUI server started successfully")
+                    logger.info("✅ ComfyUI server started with --use-sage-attention")
                     
-                    # Check final SageAttention status
-                    if sage_available:
+                    # Check SageAttention status
+                    if sage_built:
                         try:
                             from sageattention import sageattn
                             logger.info("✅ SageAttention working with ComfyUI")
                         except Exception as e:
-                            logger.warning(f"⚠️ SageAttention not available: {e}")
+                            logger.warning(f"⚠️ SageAttention import failed: {e}")
                     
                     return True
                     
@@ -254,13 +236,6 @@ def start_comfyui():
                     logger.error("❌ ComfyUI crashed during startup:")
                     logger.error(f"STDOUT: {stdout.decode()}")
                     logger.error(f"STDERR: {stderr.decode()}")
-                    
-                    # From logs: Check for specific errors
-                    stderr_str = stderr.decode()
-                    if "operator torchvision::nms does not exist" in stderr_str:
-                        logger.error("🔍 torchvision::nms error detected - dependency conflict!")
-                        logger.error("💡 This is caused by version mismatches in torch/torchvision")
-                    
                     return False
                 time.sleep(1)
         
