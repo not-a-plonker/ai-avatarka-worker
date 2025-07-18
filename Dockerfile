@@ -1,4 +1,4 @@
-# AI-Avatarka - Use hearmeman base but keep all our models and build process
+# AI-Avatarka - Use hearmeman base, add models and serverless wrapper
 FROM hearmeman/comfyui-wan-template:v2
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -6,8 +6,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# Install ONLY RunPod serverless - DON'T TOUCH ANYTHING ELSE
-RUN pip install --no-cache-dir --no-deps runpod~=1.7.9
+# Install ONLY what we need for serverless
+RUN pip install --no-cache-dir --no-deps runpod~=1.7.9 && \
+    pip install --no-cache-dir --no-deps gdown>=5.0.0
 
 # Copy our project files
 COPY src/ /workspace/src/
@@ -20,49 +21,46 @@ COPY worker-config.json /workspace/
 RUN mkdir -p /workspace/ComfyUI/models/{diffusion_models,vae,text_encoders,clip_vision,loras,controlnet,upscale_models} \
     /workspace/ComfyUI/{input,output,workflow}
 
-# Download YOUR models (not assuming they exist in base image)
-RUN echo "📦 Downloading OUR Wan 2.1 models..." && \
-    cd /workspace/ComfyUI/models && \
-    \
-    wget --progress=dot:giga -O diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors \
+# Download YOUR models EXACTLY as in original Dockerfile
+RUN echo "📦 Downloading Wan 2.1 models..." && \
+    wget --progress=dot:giga -O /workspace/ComfyUI/models/diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors \
     "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors" && \
     \
-    wget --progress=dot:giga -O vae/wan_2.1_vae.safetensors \
+    wget --progress=dot:giga -O /workspace/ComfyUI/models/vae/wan_2.1_vae.safetensors \
     "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors" && \
     \
-    wget --progress=dot:giga -O text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors \
+    wget --progress=dot:giga -O /workspace/ComfyUI/models/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors \
     "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors" && \
     \
-    wget --progress=dot:giga -O clip_vision/clip_vision_h.safetensors \
+    wget --progress=dot:giga -O /workspace/ComfyUI/models/clip_vision/clip_vision_h.safetensors \
     "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors" && \
     \
-    echo "✅ Core models downloaded"
+    echo "✅ Base models downloaded"
 
-# Install gdown for LoRA downloads
-RUN pip install --no-cache-dir --no-deps gdown>=5.0.0
-
-# Download LoRA files using our script
+# Download LoRA files using our script EXACTLY as before
 RUN echo "🎭 Downloading LoRA files..." && \
     python /workspace/builder/download_models.py && \
     echo "✅ LoRA files downloaded"
 
-# Copy our workflow to ComfyUI
-RUN cp /workspace/workflow/* /workspace/ComfyUI/workflow/ 2>/dev/null || echo "No workflow files to copy"
+# Verify everything is there EXACTLY as before
+RUN echo "🔍 Verifying downloads..." && \
+    ls -lh /workspace/ComfyUI/models/diffusion_models/ && \
+    ls -lh /workspace/ComfyUI/models/vae/ && \
+    ls -lh /workspace/ComfyUI/models/text_encoders/ && \
+    ls -lh /workspace/ComfyUI/models/clip_vision/ && \
+    ls -lh /workspace/ComfyUI/models/loras/ && \
+    echo "✅ All models verified"
 
-# DON'T build SageAttention here - keep it at job runtime like start.sh
-RUN echo "⚠️ SageAttention will be built at job runtime (like hearmeman's start.sh)"
+# Clean up build files EXACTLY as before
+RUN rm -rf /workspace/builder/ /tmp/*
 
-# Create startup script that follows hearmeman's pattern
+# Create startup script
 RUN echo '#!/usr/bin/env python3\n\
 import sys\n\
 sys.path.append("/workspace/src")\n\
 from handler import handler\n\
 import runpod\n\
-\n\
-print("🚀 Starting AI-Avatarka handler with hearmeman base...")\n\
-print("🔧 SageAttention will build at job time")\n\
-print("🎯 ComfyUI will start with --use-sage-attention flag")\n\
-\n\
+print("🚀 Starting AI-Avatarka with hearmeman base")\n\
 runpod.serverless.start({"handler": handler})' > /workspace/start.py && \
     chmod +x /workspace/start.py
 
