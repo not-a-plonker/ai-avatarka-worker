@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: BIG_FAT_CUNT
+    runs-on: BIG_CUNT
     timeout-minutes: 180  # 3 hour timeout for heavy SageAttention + model downloads
     
     steps:

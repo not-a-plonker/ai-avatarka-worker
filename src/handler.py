@@ -439,12 +439,22 @@ def handler(job):
 if __name__ == "__main__":
     logger.info("🚀 Initializing AI-Avatarka Worker...")
     
-    # Build SageAttention if needed (like hearmeman's start.sh)
+    # Build SageAttention FIRST, before anything else (like hearmeman's start.sh)
     if not ensure_sageattention():
         logger.error("❌ Failed to ensure SageAttention - worker may not function correctly")
+        # Continue anyway, maybe it will work
+    else:
+        # Give it a moment to settle and verify it's really available
+        time.sleep(2)
+        try:
+            from sageattention import sageattn
+            logger.info("✅ SageAttention build completed and verified working")
+        except Exception as e:
+            logger.error(f"❌ SageAttention build completed but import still fails: {e}")
+            logger.error("This will likely cause ComfyUI startup to fail")
     
     # Load effects configuration
     load_effects_config()
     
-    # Start the serverless worker
+    # Start the serverless worker (ComfyUI will be started on first job)
     runpod.serverless.start({"handler": handler})
