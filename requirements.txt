@@ -1,22 +1,21 @@
 # RunPod serverless
 runpod~=1.7.9
 
-# Deep Learning & AI (HEAVY) - Fixed version conflicts
-torch>=2.3.0,<2.5.0       # ~2GB - Compatible with triton 3.0.0
-torchvision>=0.18.0,<0.20.0  # ~500MB - Match torch version
-torchaudio>=2.3.0,<2.5.0     # ~300MB - Match torch version
-triton==3.0.0                 # ~100MB - PINNED VERSION to avoid tokenization errors
-xformers>=0.0.22,<0.0.28     # ~500MB - Compatible with triton 3.0.0
-diffusers>=0.18.0,<0.32.0    # ~200MB - Avoid newer versions with triton conflicts
-transformers>=4.30.0,<4.46.0 # ~500MB - Stable range
-accelerate>=0.20.0,<0.35.0   # ~100MB - Avoid bleeding edge
-# flash-attn>=2.0.0           # REMOVED - conflicts with triton
-# sageattention>=1.0.0        # REMOVED - built at runtime
+# Deep Learning & AI - FIXED VERSIONS based on logs analysis
+# Your logs showed conflicts with torch 2.4.1->2.7.1, so we lock to stable versions
+torch==2.4.1              # LOCKED - prevents logs conflicts
+torchvision==0.19.1       # LOCKED - matches torch 2.4.1 exactly  
+torchaudio==2.4.1         # LOCKED - matches torch version
+triton==3.0.0             # LOCKED - prevents tokenization errors from logs
+xformers==0.0.26.post1    # LOCKED - compatible with torch 2.4.1
+diffusers>=0.21.0,<0.30.0 # Safe range
+transformers>=4.30.0,<4.45.0 # Safe range without conflicts
+accelerate>=0.20.0,<0.30.0    # Safe range
 
-# Image/Video Processing (HEAVY)
+# Image/Video Processing - SAFE VERSIONS
 opencv-python-headless>=4.8.0  # ~300MB
 pillow>=10.0.0            # ~10MB
-numpy>=1.24.0,<2.0.0      # ~50MB - Avoid numpy 2.0 breaking changes
+numpy==1.26.4             # LOCKED - prevents conflicts with scipy/cupy/mediapipe/numba from logs
 imageio>=2.31.0           # ~20MB
 imageio-ffmpeg>=0.4.8     # ~50MB
 av>=10.0.0                # ~100MB
@@ -25,8 +24,8 @@ av>=10.0.0                # ~100MB
 soundfile>=0.12.0         # ~50MB
 librosa>=0.10.0           # ~100MB
 
-# Scientific Computing (HEAVY)
-scipy>=1.11.0,<1.15.0    # ~200MB - Stable range
+# Scientific Computing - COMPATIBLE VERSIONS
+scipy>=1.11.0,<1.14.0    # Matches numpy 1.26.4
 scikit-image>=0.21.0      # ~150MB
 matplotlib>=3.7.0         # ~100MB
 
@@ -45,10 +44,19 @@ requests>=2.31.0          # ~5MB
 # System Utilities
 psutil>=5.9.0             # ~5MB
 
-# Build tools (needed for SageAttention runtime build)
+# Build tools (needed for SageAttention compilation)
 ninja>=1.10.0             # ~5MB
 packaging>=21.0           # ~5MB
 wheel>=0.37.0             # ~5MB
 setuptools>=65.0          # ~10MB
 
-# TOTAL: ~5GB+ installed size (SageAttention built at runtime)
+# Google Drive downloads
+gdown>=5.0.0              # ~5MB
+
+# IMPORTANT: SageAttention will be built at RUNTIME to avoid dependency conflicts
+# The logs showed that pre-building SageAttention caused massive dependency chain issues:
+# - torch version conflicts (2.4.1 -> 2.7.1)
+# - numpy incompatibilities (1.26.4 -> 2.3.1) 
+# - triton tokenization errors (3.0.0 -> 3.3.1)
+# 
+# Runtime building with dependency isolation prevents these cascading failures
