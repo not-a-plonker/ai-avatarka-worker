@@ -1,21 +1,22 @@
 # RunPod serverless
 runpod~=1.7.9
 
-# Deep Learning & AI (HEAVY) - Updated for SageAttention compatibility
-torch>=2.3.0              # ~2GB - REQUIRED for SageAttention (was 2.0.1)
-torchvision>=0.18.0        # ~500MB - Updated for torch 2.3+
-torchaudio>=2.3.0         # ~300MB - Updated for torch 2.3+
-triton>=3.0.0             # ~100MB - REQUIRED for SageAttention (was missing)
-xformers>=0.0.22          # ~500MB
-diffusers>=0.18.0         # ~200MB
-transformers>=4.30.0      # ~500MB
-accelerate>=0.20.0        # ~100MB
-# flash-attn>=2.0.0        # REMOVED - was causing runner crashes during compilation
+# Deep Learning & AI (HEAVY) - Fixed version conflicts
+torch>=2.3.0,<2.5.0       # ~2GB - Compatible with triton 3.0.0
+torchvision>=0.18.0,<0.20.0  # ~500MB - Match torch version
+torchaudio>=2.3.0,<2.5.0     # ~300MB - Match torch version
+triton==3.0.0                 # ~100MB - PINNED VERSION to avoid tokenization errors
+xformers>=0.0.22,<0.0.28     # ~500MB - Compatible with triton 3.0.0
+diffusers>=0.18.0,<0.32.0    # ~200MB - Avoid newer versions with triton conflicts
+transformers>=4.30.0,<4.46.0 # ~500MB - Stable range
+accelerate>=0.20.0,<0.35.0   # ~100MB - Avoid bleeding edge
+# flash-attn>=2.0.0           # REMOVED - conflicts with triton
+# sageattention>=1.0.0        # REMOVED - built at runtime
 
 # Image/Video Processing (HEAVY)
 opencv-python-headless>=4.8.0  # ~300MB
 pillow>=10.0.0            # ~10MB
-numpy>=1.24.0             # ~50MB
+numpy>=1.24.0,<2.0.0      # ~50MB - Avoid numpy 2.0 breaking changes
 imageio>=2.31.0           # ~20MB
 imageio-ffmpeg>=0.4.8     # ~50MB
 av>=10.0.0                # ~100MB
@@ -25,7 +26,7 @@ soundfile>=0.12.0         # ~50MB
 librosa>=0.10.0           # ~100MB
 
 # Scientific Computing (HEAVY)
-scipy>=1.11.0             # ~200MB
+scipy>=1.11.0,<1.15.0    # ~200MB - Stable range
 scikit-image>=0.21.0      # ~150MB
 matplotlib>=3.7.0         # ~100MB
 
@@ -34,7 +35,6 @@ safetensors>=0.3.0        # ~20MB
 omegaconf>=2.3.0          # ~5MB
 einops>=0.6.0             # ~5MB
 kornia>=0.7.0             # ~100MB
-# sageattention>=1.0.0    # REMOVED - built at runtime using hearmeman's method
 
 # Web & Async
 aiohttp>=3.8.0            # ~10MB
@@ -44,5 +44,11 @@ requests>=2.31.0          # ~5MB
 
 # System Utilities
 psutil>=5.9.0             # ~5MB
+
+# Build tools (needed for SageAttention runtime build)
+ninja>=1.10.0             # ~5MB
+packaging>=21.0           # ~5MB
+wheel>=0.37.0             # ~5MB
+setuptools>=65.0          # ~10MB
 
 # TOTAL: ~5GB+ installed size (SageAttention built at runtime)

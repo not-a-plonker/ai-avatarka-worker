@@ -33,6 +33,30 @@ comfyui_process = None
 comfyui_initialized = False
 effects_data = None
 
+def fix_triton_xformers_issue():
+    """Fix the triton tokenization error that's breaking xformers"""
+    try:
+        logger.info("🔧 Fixing triton/xformers tokenization issue...")
+        
+        # The error is in xformers triton integration - let's fix it
+        subprocess.run([
+            sys.executable, "-m", "pip", "install", "--no-cache-dir", 
+            "--force-reinstall", "triton==3.0.0"
+        ], check=True, timeout=120)
+        
+        # Also reinstall xformers to ensure compatibility
+        subprocess.run([
+            sys.executable, "-m", "pip", "install", "--no-cache-dir",
+            "--force-reinstall", "xformers>=0.0.22"
+        ], check=True, timeout=120)
+        
+        logger.info("✅ Triton/xformers reinstalled successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to fix triton/xformers: {e}")
+        return False
+
 def build_sageattention_in_comfyui_startup():
     """Build SageAttention when ComfyUI starts (CRITICAL: This runs when job comes in)"""
     try:
@@ -45,6 +69,10 @@ def build_sageattention_in_comfyui_startup():
             pass
         
         logger.info("🔧 Building SageAttention (triggered by job start)...")
+        
+        # Fix triton/xformers issue FIRST
+        if not fix_triton_xformers_issue():
+            logger.warning("⚠️ Triton/xformers fix failed, continuing anyway...")
         
         # Set environment variables for compilation
         env = os.environ.copy()
