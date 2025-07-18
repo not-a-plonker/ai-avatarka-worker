@@ -1,68 +1,118 @@
-# AI-Avatarka - Use hearmeman base, add models and serverless wrapper
+# AI-Avatarka - Build SageAttention at runtime like hearmeman
 FROM hearmeman/comfyui-wan-template:v2
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_PREFER_BINARY=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    COMFYUI_PATH="/workspace/ComfyUI"
 
-# Install ONLY what we need for serverless
-RUN pip install --no-cache-dir --no-deps runpod~=1.7.9 && \
-    pip install --no-cache-dir --no-deps gdown>=5.0.0
+# Install ONLY RunPod serverless and gdown - DON'T TOUCH BASE IMAGE DEPENDENCIES
+RUN pip install --no-cache-dir --no-deps runpod~=1.7.9 gdown>=5.0.0
 
-# Copy our project files
-COPY src/ /workspace/src/
-COPY builder/ /workspace/builder/
+# DON'T install requirements.txt - causes conflicts with base image
+# The base image already has torch, triton, xformers, etc.
+
+# Debug: Check what's in the base image
+RUN echo "🔍 Checking base image contents..." && \
+    ls -la /workspace/ || echo "No /workspace directory" && \
+    find / -name "ComfyUI" -type d 2>/dev/null || echo "No ComfyUI directory found"
+
+# Ensure ComfyUI is properly installed
+RUN if [ ! -f "/workspace/ComfyUI/main.py" ]; then \
+        echo "🔧 Installing ComfyUI..."; \
+        mkdir -p /workspace && \
+        cd /workspace && \
+        git clone https://github.com/comfyanonymous/ComfyUI.git && \
+        cd ComfyUI && \
+        pip install -r requirements.txt; \
+    else \
+        echo "✅ ComfyUI already present"; \
+    fi
+
+# Verify ComfyUI installation
+RUN echo "🔍 Verifying ComfyUI installation..." && \
+    ls -la /workspace/ComfyUI/main.py && \
+    echo "✅ ComfyUI main.py found"
+
+# Create custom_nodes directory and install custom nodes
+RUN mkdir -p /workspace/ComfyUI/custom_nodes && \
+    cd /workspace/ComfyUI/custom_nodes && \
+    echo "📦 Installing custom nodes..." && \
+    git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git && \
+    git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git && \
+    git clone https://github.com/cubiq/ComfyUI_essentials.git
+
+# Install custom node requirements but AVOID conflicts with base image
+RUN for dir in /workspace/ComfyUI/custom_nodes/*/; do \
+        if [ -f "$dir/requirements.txt" ]; then \
+            echo "Installing requirements for $(basename $dir)"; \
+            # Remove ALL potential conflicting packages \
+            sed -i '/sageattention/d; /torch/d; /triton/d; /xformers/d; /numpy/d; /scipy/d' "$dir/requirements.txt"; \
+            # Only install if there are still requirements left \
+            if [ -s "$dir/requirements.txt" ]; then \
+                pip install --no-cache-dir -r "$dir/requirements.txt"; \
+            fi; \
+        fi; \
+    done
+
+# Create model directories
+RUN mkdir -p /workspace/ComfyUI/models/diffusion_models \
+             /workspace/ComfyUI/models/vae \
+             /workspace/ComfyUI/models/text_encoders \
+             /workspace/ComfyUI/models/clip_vision \
+             /workspace/ComfyUI/models/loras \
+             /workspace/ComfyUI/input \
+             /workspace/ComfyUI/output
+
+# Copy project files
+COPY workflow/ /workspace/ComfyUI/workflow/
 COPY prompts/ /workspace/prompts/
-COPY workflow/ /workspace/workflow/
-COPY worker-config.json /workspace/
+COPY lora/ /workspace/ComfyUI/models/loras/
+COPY builder/ /workspace/builder/
+COPY src/handler.py /workspace/src/handler.py
 
-# Create ComfyUI directory structure for our models
-RUN mkdir -p /workspace/ComfyUI/models/{diffusion_models,vae,text_encoders,clip_vision,loras,controlnet,upscale_models} \
-    /workspace/ComfyUI/{input,output,workflow}
-
-# Download YOUR models EXACTLY as in original Dockerfile
+# Download all models during build (using wget for reliability) - EXACT COPY
 RUN echo "📦 Downloading Wan 2.1 models..." && \
-    wget --progress=dot:giga -O /workspace/ComfyUI/models/diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors \
+    wget --progress=dot:giga --timeout=0 --tries=3 \
+    -O /workspace/ComfyUI/models/diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors \
     "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors" && \
     \
-    wget --progress=dot:giga -O /workspace/ComfyUI/models/vae/wan_2.1_vae.safetensors \
+    wget --progress=dot:giga --timeout=0 --tries=3 \
+    -O /workspace/ComfyUI/models/vae/wan_2.1_vae.safetensors \
     "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors" && \
     \
-    wget --progress=dot:giga -O /workspace/ComfyUI/models/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors \
-    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors" && \
+    wget --progress=dot:giga --timeout=0 --tries=3 \
+    -O /workspace/ComfyUI/models/text_encoders/umt5-xxl-enc-bf16.safetensors \
+    "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/umt5-xxl-enc-bf16.safetensors" && \
     \
-    wget --progress=dot:giga -O /workspace/ComfyUI/models/clip_vision/clip_vision_h.safetensors \
-    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors" && \
+    wget --progress=dot:giga --timeout=0 --tries=3 \
+    -O /workspace/ComfyUI/models/clip_vision/open-clip-xlm-roberta-large-vit-huge-14_fp16.safetensors \
+    "https://huggingface.co/Kijai/WanVideo_comfy/resolve/b4fde5290d401dff216d70a915643411e9532951/open-clip-xlm-roberta-large-vit-huge-14_fp16.safetensors" && \
     \
     echo "✅ Base models downloaded"
 
-# Download LoRA files using our script EXACTLY as before
+# Download LoRA files using our script - EXACT COPY
 RUN echo "🎭 Downloading LoRA files..." && \
     python /workspace/builder/download_models.py && \
     echo "✅ LoRA files downloaded"
 
-# Verify everything is there EXACTLY as before
-RUN echo "🔍 Verifying downloads..." && \
+# Final verification (no SageAttention verification - will be built at runtime) - EXACT COPY
+RUN echo "🔍 Final verification..." && \
+    echo "ComfyUI main.py:" && ls -lh /workspace/ComfyUI/main.py && \
+    echo "Models:" && \
     ls -lh /workspace/ComfyUI/models/diffusion_models/ && \
     ls -lh /workspace/ComfyUI/models/vae/ && \
     ls -lh /workspace/ComfyUI/models/text_encoders/ && \
     ls -lh /workspace/ComfyUI/models/clip_vision/ && \
-    ls -lh /workspace/ComfyUI/models/loras/ && \
-    echo "✅ All models verified"
+    echo "LoRA files:" && ls -lh /workspace/ComfyUI/models/loras/ && \
+    echo "Custom nodes:" && ls -la /workspace/ComfyUI/custom_nodes/ && \
+    echo "✅ All verified and ready! (SageAttention will be built at runtime)"
 
-# Clean up build files EXACTLY as before
-RUN rm -rf /workspace/builder/ /tmp/*
+# Clean up build files to reduce image size - EXACT COPY
+RUN rm -rf /workspace/builder/ /tmp/* /var/lib/apt/lists/*
 
-# Create startup script
-RUN echo '#!/usr/bin/env python3\n\
-import sys\n\
-sys.path.append("/workspace/src")\n\
-from handler import handler\n\
-import runpod\n\
-print("🚀 Starting AI-Avatarka with hearmeman base")\n\
-runpod.serverless.start({"handler": handler})' > /workspace/start.py && \
-    chmod +x /workspace/start.py
+# Create startup script that uses our new handler - EXACT COPY
+RUN echo '#!/usr/bin/env python3\nimport sys\nsys.path.append("/workspace/src")\nfrom handler import handler\nimport runpod\nprint("🚀 Starting AI-Avatarka handler...")\nrunpod.serverless.start({"handler": handler})' > /workspace/start.py && chmod +x /workspace/start.py
 
 WORKDIR /workspace
 CMD ["python", "/workspace/start.py"]
