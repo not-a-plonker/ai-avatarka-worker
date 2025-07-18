@@ -90,6 +90,15 @@ def start_comfyui():
     try:
         logger.info("🚀 Starting ComfyUI server...")
         
+        # BUILD SAGEATTENTION FIRST! (This is where it actually needs to happen)
+        logger.info("🔧 Ensuring SageAttention is available before ComfyUI startup...")
+        if not ensure_sageattention():
+            logger.error("❌ Failed to build SageAttention")
+            return False
+        
+        # Give it a moment to settle
+        time.sleep(2)
+        
         # Debug SageAttention before starting ComfyUI
         logger.info("🔍 Checking SageAttention before ComfyUI startup...")
         try:
@@ -99,6 +108,7 @@ def start_comfyui():
             logger.info("✅ sageattn import works before ComfyUI")
         except Exception as e:
             logger.error(f"❌ SageAttention NOT available before ComfyUI: {e}")
+            return False
         
         # Change to ComfyUI directory
         os.chdir(COMFYUI_PATH)
