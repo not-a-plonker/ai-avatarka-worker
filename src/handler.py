@@ -195,13 +195,11 @@ def start_comfyui():
         cmd = [
             sys.executable, "main.py",
             "--listen", "127.0.0.1",
-            "--port", "8188"
+            "--port", "8188",
+            "--use-sage-attention"  # CRITICAL: This is the key flag from hearmeman's script
         ]
         
-        # ALWAYS add --use-sage-attention like hearmeman does
-        cmd.append("--use-sage-attention")
         logger.info("🚀 Starting ComfyUI WITH --use-sage-attention (hearmeman's pattern)")
-        
         logger.info(f"🔍 ComfyUI command: {' '.join(cmd)}")
         
         comfyui_process = subprocess.Popen(
