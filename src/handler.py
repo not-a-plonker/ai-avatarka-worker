@@ -1,6 +1,6 @@
 """
 AI-Avatarka RunPod Serverless Worker Handler
-Fixed to use venv Python and download models at startup like hearmeman suka
+Fixed to use venv Python with build-time model downloads
 """
 
 import runpod
@@ -33,7 +33,6 @@ WORKFLOW_PATH = "/workspace/workflow/universal_i2v.json"
 comfyui_process = None
 comfyui_initialized = False
 effects_data = None
-models_downloaded = False
 
 def clear_triton_cache():
     """Clear triton cache to fix Python 3.12 tokenization errors"""
@@ -81,7 +80,7 @@ def load_effects_config():
         return False
 
 def start_comfyui():
-    """Start ComfyUI with --use-sage-attention flag using venv Python"""
+    """Start ComfyUI using venv Python (temporarily without SageAttention)"""
     global comfyui_process, comfyui_initialized
     
     if comfyui_initialized:
@@ -106,15 +105,15 @@ def start_comfyui():
             'TRITON_CACHE_DIR': '/tmp/triton_runtime'
         })
         
-        # CRITICAL: Use venv Python where SageAttention is installed
+        # Use venv Python (temporarily without --use-sage-attention)
         cmd = [
             "/opt/venv/bin/python", "main.py",
             "--listen", "127.0.0.1",
-            "--port", "8188", 
-            "--use-sage-attention"
+            "--port", "8188"
+            # Temporarily removed: "--use-sage-attention"
         ]
         
-        logger.info("🚀 Starting ComfyUI WITH --use-sage-attention (venv Python)")
+        logger.info("🚀 Starting ComfyUI (venv Python, SageAttention disabled for testing)")
         logger.info(f"🔍 ComfyUI command: {' '.join(cmd)}")
         logger.info(f"📁 Working directory: {os.getcwd()}")
         
@@ -323,36 +322,14 @@ def encode_video_to_base64(video_path: str) -> Optional[str]:
         logger.error(f"❌ Error encoding video: {str(e)}")
         return None
 
-def initialize_worker():
-    """Initialize worker - models already downloaded during build"""
-    try:
-        logger.info("🚀 Initializing AI-Avatarka Worker...")
-        logger.info("✅ Models already downloaded during Docker build")
-        
-        # Just load effects configuration
-        if not load_effects_config():
-            logger.warning("⚠️ Effects config not loaded - using defaults")
-        
-        logger.info("✅ Worker initialization complete")
-        return True
-        
-    except Exception as e:
-        logger.error(f"❌ Worker initialization failed: {e}")
-        return False
-        
-    except Exception as e:
-        logger.error(f"❌ Worker initialization failed: {e}")
-        return False
-
 def handler(job):
     """Main RunPod handler"""
     try:
         logger.info("🎬 Processing job...")
         
-        # Initialize worker on first job (download models, etc.)
-        if not models_downloaded:
-            if not initialize_worker():
-                return {"error": "Worker initialization failed"}
+        # Load effects config if not loaded
+        if not effects_data and not load_effects_config():
+            logger.warning("⚠️ Effects config not loaded - using defaults")
         
         # Start ComfyUI if not already running
         if not start_comfyui():
@@ -434,8 +411,8 @@ def handler(job):
 # Initialize on startup
 if __name__ == "__main__":
     logger.info("🚀 Starting AI-Avatarka Worker...")
-    logger.info("✅ Using hearmeman base image with SageAttention pre-installed") 
-    logger.info("🔧 Will download models at startup like hearmeman")
+    logger.info("✅ Models downloaded during Docker build")
+    logger.info("🔧 Testing ComfyUI startup without SageAttention first")
     
     logger.info("🎯 Starting RunPod serverless worker...")
     runpod.serverless.start({"handler": handler})

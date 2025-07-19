@@ -10,8 +10,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y git build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-RUN pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
+# Install dependencies using venv pip consistently
+RUN /opt/venv/bin/pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
 
 # Copy and install requirements (EXCLUDING sageattention AND flash-attn)
 COPY requirements.txt /tmp/requirements.txt
@@ -32,7 +32,7 @@ RUN if [ ! -f "/workspace/ComfyUI/main.py" ]; then \
         cd /workspace && \
         git clone https://github.com/comfyanonymous/ComfyUI.git && \
         cd ComfyUI && \
-        pip install -r requirements.txt; \
+        /opt/venv/bin/pip install -r requirements.txt; \
     else \
         echo "✅ ComfyUI already present"; \
     fi
@@ -50,12 +50,12 @@ RUN mkdir -p /workspace/ComfyUI/custom_nodes && \
     git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git && \
     git clone https://github.com/cubiq/ComfyUI_essentials.git
 
-# Install custom node requirements (but skip any that try to reinstall SageAttention)
+# Install custom node requirements using venv pip consistently
 RUN for dir in /workspace/ComfyUI/custom_nodes/*/; do \
         if [ -f "$dir/requirements.txt" ]; then \
             echo "Installing requirements for $(basename $dir)"; \
             sed -i '/sageattention/d' "$dir/requirements.txt"; \
-            pip install --no-cache-dir -r "$dir/requirements.txt"; \
+            /opt/venv/bin/pip install --no-cache-dir -r "$dir/requirements.txt"; \
         fi; \
     done
 
