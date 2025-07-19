@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     COMFYUI_PATH="/workspace/ComfyUI"
 
 # Install ONLY RunPod serverless and gdown - DON'T TOUCH BASE IMAGE DEPENDENCIES
-RUN pip install --no-cache-dir --no-deps runpod~=1.7.9 gdown>=5.0.0
+RUN pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
 
 # Copy project files
 COPY src/handler.py /workspace/src/handler.py
