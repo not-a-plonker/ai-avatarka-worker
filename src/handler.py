@@ -1,6 +1,6 @@
 """
 AI-Avatarka RunPod Serverless Worker Handler
-Fixed to use venv Python and removed unnecessary SageAttention building
+Fixed to use venv Python and download models at startup like hearmeman
 """
 
 import runpod
@@ -24,22 +24,22 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Constants - Use base image paths
-COMFYUI_PATH = "/workspace/ComfyUI"  # Base image ComfyUI location
+COMFYUI_PATH = "/workspace/ComfyUI"
 COMFYUI_SERVER = "127.0.0.1:8188"
-EFFECTS_CONFIG = "/workspace/prompts/effects.json"  # Our config
-WORKFLOW_PATH = "/workspace/workflow/universal_i2v.json"  # Our workflow
+EFFECTS_CONFIG = "/workspace/prompts/effects.json"
+WORKFLOW_PATH = "/workspace/workflow/universal_i2v.json"
 
 # Global state
 comfyui_process = None
 comfyui_initialized = False
 effects_data = None
+models_downloaded = False
 
 def clear_triton_cache():
     """Clear triton cache to fix Python 3.12 tokenization errors"""
     try:
         logger.info("🧹 Clearing triton cache (Python 3.12 fix)...")
         
-        # Find triton cache directories
         cache_paths = [
             Path.home() / ".triton",
             Path("/tmp/.triton"),
@@ -66,6 +66,38 @@ def clear_triton_cache():
         
     except Exception as e:
         logger.warning(f"⚠️ Error clearing triton cache: {e}")
+        return False
+
+def download_models_and_loras():
+    """Download models and LoRAs using the dedicated download script"""
+    global models_downloaded
+    
+    if models_downloaded:
+        return True
+        
+    try:
+        logger.info("🔧 Running model download script...")
+        
+        # Run the dedicated download script
+        result = subprocess.run([
+            sys.executable, "/workspace/builder/download_models.py"
+        ], capture_output=True, text=True, timeout=3600)  # 1 hour timeout
+        
+        if result.returncode == 0:
+            logger.info("✅ Model download script completed successfully")
+            models_downloaded = True
+            return True
+        else:
+            logger.error(f"❌ Model download script failed:")
+            logger.error(f"STDOUT: {result.stdout}")
+            logger.error(f"STDERR: {result.stderr}")
+            return False
+        
+    except subprocess.TimeoutExpired:
+        logger.error("❌ Model download script timed out")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Error running model download script: {e}")
         return False
 
 def load_effects_config():
@@ -108,10 +140,10 @@ def start_comfyui():
         
         # CRITICAL: Use venv Python where SageAttention is installed
         cmd = [
-            "/opt/venv/bin/python", "main.py",  # Use venv Python, not sys.executable
+            "/opt/venv/bin/python", "main.py",
             "--listen", "127.0.0.1",
             "--port", "8188", 
-            "--use-sage-attention"  # SageAttention is already installed in venv
+            "--use-sage-attention"
         ]
         
         logger.info("🚀 Starting ComfyUI WITH --use-sage-attention (venv Python)")
@@ -203,7 +235,6 @@ def customize_workflow(workflow: Dict, params: Dict) -> Dict:
         effect_config = effects_data.get(params['effect'], {})
         
         # Update workflow nodes based on your workflow structure
-        # This is a template - customize based on your actual workflow JSON
         for node_id, node in workflow.items():
             node_type = node.get("class_type", "")
             
@@ -324,26 +355,48 @@ def encode_video_to_base64(video_path: str) -> Optional[str]:
         logger.error(f"❌ Error encoding video: {str(e)}")
         return None
 
+def initialize_worker():
+    """Initialize worker - download models and LoRAs at startup"""
+    try:
+        logger.info("🚀 Initializing AI-Avatarka Worker...")
+        
+        # Run the dedicated download script
+        if not download_models_and_loras():
+            logger.error("❌ Failed to download required models and LoRAs")
+            return False
+        
+        # Load effects configuration
+        if not load_effects_config():
+            logger.warning("⚠️ Effects config not loaded - using defaults")
+        
+        logger.info("✅ Worker initialization complete")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Worker initialization failed: {e}")
+        return False
+
 def handler(job):
     """Main RunPod handler"""
     try:
         logger.info("🎬 Processing job...")
         
-        # Get job input
-        job_input = job.get("input", {})
+        # Initialize worker on first job (download models, etc.)
+        if not models_downloaded:
+            if not initialize_worker():
+                return {"error": "Worker initialization failed"}
         
         # Start ComfyUI if not already running
         if not start_comfyui():
             return {"error": "Failed to start ComfyUI"}
         
-        # Load effects config if not loaded
-        if not effects_data and not load_effects_config():
-            return {"error": "Failed to load effects configuration"}
-        
         # Load workflow template
         workflow = load_workflow()
         if not workflow:
             return {"error": "Failed to load workflow"}
+        
+        # Get job input
+        job_input = job.get("input", {})
         
         # Process input image
         image_data = job_input.get("image")
@@ -412,9 +465,9 @@ def handler(job):
 
 # Initialize on startup
 if __name__ == "__main__":
-    logger.info("🚀 Initializing AI-Avatarka Worker...")
-    logger.info("✅ Using hearmeman base image with SageAttention pre-installed")
-    logger.info("🔧 Will use venv Python with --use-sage-attention flag")
+    logger.info("🚀 Starting AI-Avatarka Worker...")
+    logger.info("✅ Using hearmeman base image with SageAttention pre-installed") 
+    logger.info("🔧 Will download models at startup like hearmeman")
     
     logger.info("🎯 Starting RunPod serverless worker...")
     runpod.serverless.start({"handler": handler})

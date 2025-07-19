@@ -74,41 +74,6 @@ RUN echo "📋 Installing custom node requirements..." && \
         fi; \
     done
 
-# Download models during build - YOUR EXACT WORKING COMMANDS
-RUN echo "📦 Downloading Wan 2.1 models..." && \
-    wget --progress=dot:giga --timeout=0 --tries=3 \
-    -O /workspace/ComfyUI/models/diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors \
-    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_i2v_480p_14B_bf16.safetensors" && \
-    \
-    wget --progress=dot:giga --timeout=0 --tries=3 \
-    -O /workspace/ComfyUI/models/vae/wan_2.1_vae.safetensors \
-    "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors" && \
-    \
-    wget --progress=dot:giga --timeout=0 --tries=3 \
-    -O /workspace/ComfyUI/models/text_encoders/umt5-xxl-enc-bf16.safetensors \
-    "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/umt5-xxl-enc-bf16.safetensors" && \
-    \
-    wget --progress=dot:giga --timeout=0 --tries=3 \
-    -O /workspace/ComfyUI/models/clip_vision/open-clip-xlm-roberta-large-vit-huge-14_fp16.safetensors \
-    "https://huggingface.co/Kijai/WanVideo_comfy/resolve/b4fde5290d401dff216d70a915643411e9532951/open-clip-xlm-roberta-large-vit-huge-14_fp16.safetensors" && \
-    \
-    echo "✅ Base models downloaded"
-
-# Download LoRA files
-RUN echo "🎭 Downloading LoRA files..." && \
-    python /workspace/builder/download_models.py && \
-    echo "✅ LoRA files downloaded"
-
-# Final verification
-RUN echo "🔍 Final verification..." && \
-    ls -lh /workspace/ComfyUI/models/diffusion_models/ && \
-    ls -lh /workspace/ComfyUI/models/vae/ && \
-    ls -lh /workspace/ComfyUI/models/text_encoders/ && \
-    ls -lh /workspace/ComfyUI/models/clip_vision/ && \
-    ls -lh /workspace/ComfyUI/models/loras/ && \
-    ls -la /workspace/ComfyUI/custom_nodes/ && \
-    echo "✅ All verified!"
-
 # Clean up
 RUN rm -rf /workspace/builder/ /tmp/* /var/lib/apt/lists/*
 
