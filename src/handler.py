@@ -1,6 +1,6 @@
 """
 AI-Avatarka RunPod Serverless Worker Handler
-Fixed triton tokenization error with proper SageAttention startup suka
+Fixed to use venv Python and removed unnecessary SageAttention building
 """
 
 import runpod
@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 # Constants - Use base image paths
 COMFYUI_PATH = "/workspace/ComfyUI"  # Base image ComfyUI location
 COMFYUI_SERVER = "127.0.0.1:8188"
-EFFECTS_CONFIG = "/workspace/ai-avatarka/prompts/effects.json"  # Our config
-WORKFLOW_PATH = "/workspace/ai-avatarka/workflow/universal_i2v.json"  # Our workflow
+EFFECTS_CONFIG = "/workspace/prompts/effects.json"  # Our config
+WORKFLOW_PATH = "/workspace/workflow/universal_i2v.json"  # Our workflow
 
 # Global state
 comfyui_process = None
@@ -68,85 +68,6 @@ def clear_triton_cache():
         logger.warning(f"⚠️ Error clearing triton cache: {e}")
         return False
 
-def build_sageattention_with_cache_fix():
-    """Build SageAttention at job time - EXACTLY like hearmeman's start.sh"""
-    try:
-        # Check if already available first
-        try:
-            from sageattention import sageattn
-            logger.info("✅ SageAttention already available, skipping build")
-            return True
-        except ImportError:
-            pass
-        
-        logger.info("🔧 Building SageAttention at job time (like hearmeman's start.sh)...")
-        
-        # Clear triton cache like hearmeman does
-        clear_triton_cache()
-        
-        # Use hearmeman's build environment setup
-        env = os.environ.copy()
-        env.update({
-            'TORCH_CUDA_ARCH_LIST': '8.6;8.9;9.0',
-            'CUDA_VISIBLE_DEVICES': '0',
-            'MAX_JOBS': '4',
-            'NINJA_STATUS': '[%f/%t] ',
-            'PYTHONDONTWRITEBYTECODE': '1',
-            'TRITON_CACHE_DIR': '/tmp/triton_build_cache'
-        })
-        
-        # Create build directory like hearmeman
-        build_dir = Path("/tmp/sageattention_build")
-        if build_dir.exists():
-            subprocess.run(["rm", "-rf", str(build_dir)], check=True)
-        
-        triton_cache = Path("/tmp/triton_build_cache")
-        if triton_cache.exists():
-            subprocess.run(["rm", "-rf", str(triton_cache)], check=True)
-        triton_cache.mkdir(parents=True, exist_ok=True)
-        
-        logger.info("📥 Cloning SageAttention...")
-        subprocess.run([
-            "git", "clone", "--depth", "1",
-            "https://github.com/thu-ml/SageAttention.git",
-            str(build_dir)
-        ], check=True, env=env, timeout=120)
-        
-        # Build using hearmeman's method (setup.py install)
-        logger.info("🔨 Building SageAttention (hearmeman's method)...")
-        
-        result = subprocess.run([
-            sys.executable, "setup.py", "install"
-        ], cwd=str(build_dir), env=env, capture_output=True, text=True, timeout=600)
-        
-        if result.returncode != 0:
-            logger.error(f"❌ SageAttention build failed:")
-            logger.error(f"STDOUT: {result.stdout}")
-            logger.error(f"STDERR: {result.stderr}")
-            return False
-        else:
-            logger.info("✅ SageAttention build succeeded")
-        
-        # Cleanup like hearmeman
-        subprocess.run(["rm", "-rf", str(build_dir), str(triton_cache)], check=False)
-        clear_triton_cache()
-        
-        # Verification
-        try:
-            from sageattention import sageattn
-            logger.info("✅ SageAttention job-time build completed!")
-            return True
-        except ImportError as e:
-            logger.error(f"❌ SageAttention import failed: {e}")
-            return False
-            
-    except subprocess.TimeoutExpired:
-        logger.error("❌ SageAttention build timed out")
-        return False
-    except Exception as e:
-        logger.error(f"❌ SageAttention build error: {e}")
-        return False
-
 def load_effects_config():
     """Load effects configuration"""
     global effects_data
@@ -160,26 +81,23 @@ def load_effects_config():
         return False
 
 def start_comfyui():
-    """Start ComfyUI - EXACTLY like hearmeman's start.sh with --use-sage-attention"""
+    """Start ComfyUI with --use-sage-attention flag using venv Python"""
     global comfyui_process, comfyui_initialized
     
     if comfyui_initialized:
         return True
     
     try:
-        logger.info("🚀 Starting ComfyUI like hearmeman's start.sh...")
+        logger.info("🚀 Starting ComfyUI with venv Python...")
         
-        # Build SageAttention at job time like hearmeman does
-        logger.info("🔧 Building SageAttention at job start (hearmeman's pattern)...")
-        sage_built = build_sageattention_with_cache_fix()
-        
-        # Clear cache like hearmeman
+        # Clear triton cache
         clear_triton_cache()
-        time.sleep(3)
+        time.sleep(2)
         
-        # Start ComfyUI from base image location
+        # Change to ComfyUI directory
         os.chdir(COMFYUI_PATH)
         
+        # Set environment like hearmeman's script
         env = os.environ.copy()
         env.update({
             'CUDA_VISIBLE_DEVICES': '0',
@@ -188,56 +106,52 @@ def start_comfyui():
             'TRITON_CACHE_DIR': '/tmp/triton_runtime'
         })
         
-        # CRITICAL: Follow hearmeman's exact startup pattern with --use-sage-attention
-        # From hearmeman's start.sh:
-        # python3 "$NETWORK_VOLUME/ComfyUI/main.py" --listen --use-sage-attention
-        
+        # CRITICAL: Use venv Python where SageAttention is installed
         cmd = [
-            sys.executable, "main.py",
+            "/opt/venv/bin/python", "main.py",  # Use venv Python, not sys.executable
             "--listen", "127.0.0.1",
-            "--port", "8188",
-            "--use-sage-attention"  # CRITICAL: This is the key flag from hearmeman's script
+            "--port", "8188", 
+            "--use-sage-attention"  # SageAttention is already installed in venv
         ]
         
-        logger.info("🚀 Starting ComfyUI WITH --use-sage-attention (hearmeman's pattern)")
+        logger.info("🚀 Starting ComfyUI WITH --use-sage-attention (venv Python)")
         logger.info(f"🔍 ComfyUI command: {' '.join(cmd)}")
+        logger.info(f"📁 Working directory: {os.getcwd()}")
         
+        # Start ComfyUI in background
         comfyui_process = subprocess.Popen(
             cmd,
-            cwd=COMFYUI_PATH, 
-            env=env, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
         )
         
-        # Wait for server like hearmeman
-        for i in range(180):
+        # Wait for ComfyUI to start
+        logger.info("⏳ Waiting for ComfyUI to start...")
+        for attempt in range(60):  # 60 seconds timeout
             try:
-                response = requests.get(f"http://{COMFYUI_SERVER}/", timeout=5)
+                response = requests.get(f"http://{COMFYUI_SERVER}/", timeout=2)
                 if response.status_code == 200:
+                    logger.info("✅ ComfyUI started successfully!")
                     comfyui_initialized = True
-                    logger.info("✅ ComfyUI server started with --use-sage-attention")
-                    
-                    # Check SageAttention status
-                    if sage_built:
-                        try:
-                            from sageattention import sageattn
-                            logger.info("✅ SageAttention working with ComfyUI")
-                        except Exception as e:
-                            logger.warning(f"⚠️ SageAttention import failed: {e}")
-                    
                     return True
-                    
-            except requests.exceptions.RequestException:
-                if comfyui_process.poll() is not None:
-                    stdout, stderr = comfyui_process.communicate()
-                    logger.error("❌ ComfyUI crashed during startup:")
-                    logger.error(f"STDOUT: {stdout.decode()}")
-                    logger.error(f"STDERR: {stderr.decode()}")
-                    return False
-                time.sleep(1)
+            except requests.RequestException:
+                pass
+            
+            # Check if process crashed
+            if comfyui_process.poll() is not None:
+                stdout, stderr = comfyui_process.communicate()
+                logger.error(f"❌ ComfyUI process crashed:")
+                logger.error(f"Exit code: {comfyui_process.returncode}")
+                logger.error(f"Output: {stdout}")
+                return False
+            
+            time.sleep(1)
         
-        logger.error("❌ ComfyUI startup timeout")
+        logger.error("❌ ComfyUI failed to start within timeout")
         return False
         
     except Exception as e:
@@ -264,15 +178,16 @@ def process_input_image(image_data: str) -> Optional[str]:
         image_bytes = base64.b64decode(image_data)
         image = Image.open(io.BytesIO(image_bytes))
         
-        # Generate unique filename
-        filename = f"input_{uuid.uuid4().hex[:8]}.png"
-        filepath = Path(COMFYUI_PATH) / "input" / filename
+        # Convert to RGB if needed
+        if image.mode != "RGB":
+            image = image.convert("RGB")
         
-        # Ensure input directory exists
-        filepath.parent.mkdir(exist_ok=True)
+        # Save to ComfyUI input directory
+        filename = f"input_{uuid.uuid4().hex[:8]}.jpg"
+        input_path = Path(COMFYUI_PATH) / "input" / filename
+        input_path.parent.mkdir(exist_ok=True)
         
-        # Save image
-        image.save(filepath, format='PNG')
+        image.save(input_path, "JPEG", quality=95)
         logger.info(f"✅ Input image saved: {filename}")
         
         return filename
@@ -282,59 +197,51 @@ def process_input_image(image_data: str) -> Optional[str]:
         return None
 
 def customize_workflow(workflow: Dict, params: Dict) -> Dict:
-    """Customize workflow with user parameters"""
+    """Customize workflow with effect and parameters"""
     try:
-        # Load effect configuration
-        effect_name = params.get("effect", "ghostrider")
-        if not effects_data or effect_name not in effects_data:
-            logger.warning(f"Effect '{effect_name}' not found, using default")
-            effect_name = "ghostrider"
+        # Get effect configuration
+        effect_config = effects_data.get(params['effect'], {})
         
-        effect_config = effects_data.get(effect_name, {})
-        
-        # Update workflow nodes with parameters
+        # Update workflow nodes based on your workflow structure
+        # This is a template - customize based on your actual workflow JSON
         for node_id, node in workflow.items():
             node_type = node.get("class_type", "")
             
-            # Update image input
+            # Update image input node
             if node_type == "LoadImage":
-                node["inputs"]["image"] = params["image_filename"]
-            
-            # Update LoRA
-            elif node_type == "LoraLoader":
-                lora_file = f"{effect_name}.safetensors"
-                node["inputs"]["lora_name"] = lora_file
-                logger.info(f"🎭 Using LoRA: {lora_file}")
-            
-            # Update positive prompt
-            elif node_type == "CLIPTextEncode" and "positive" in str(node):
-                base_prompt = effect_config.get("positive_prompt", "")
-                user_prompt = params.get("prompt", "")
-                combined_prompt = f"{base_prompt}, {user_prompt}" if user_prompt else base_prompt
-                node["inputs"]["text"] = combined_prompt
-                logger.info(f"🎯 Positive prompt: {combined_prompt[:100]}...")
-            
-            # Update negative prompt
-            elif node_type == "CLIPTextEncode" and "negative" in str(node):
-                base_negative = effect_config.get("negative_prompt", "")
-                user_negative = params.get("negative_prompt", "")
-                combined_negative = f"{base_negative}, {user_negative}" if user_negative else base_negative
-                node["inputs"]["text"] = combined_negative
+                if "inputs" in node:
+                    node["inputs"]["image"] = params["image_filename"]
             
             # Update sampling parameters
             elif node_type == "KSampler":
-                node["inputs"]["steps"] = params.get("steps", 10)
-                node["inputs"]["cfg"] = params.get("cfg", 6)
-                node["inputs"]["seed"] = params.get("seed", -1)
+                if "inputs" in node:
+                    node["inputs"]["steps"] = params.get("steps", 10)
+                    node["inputs"]["cfg"] = params.get("cfg", 6)
+                    node["inputs"]["seed"] = params.get("seed", -1)
+            
+            # Update text prompts
+            elif node_type == "CLIPTextEncode":
+                if "inputs" in node and "text" in node["inputs"]:
+                    # Use custom prompt or effect default
+                    if params.get("prompt"):
+                        node["inputs"]["text"] = params["prompt"]
+                    elif effect_config.get("prompt"):
+                        node["inputs"]["text"] = effect_config["prompt"]
+            
+            # Update LoRA loader for effect
+            elif node_type == "LoraLoader":
+                if "inputs" in node and effect_config.get("lora_name"):
+                    node["inputs"]["lora_name"] = effect_config["lora_name"]
             
             # Update video parameters
-            elif "video" in node_type.lower():
-                if "fps" in node["inputs"]:
-                    node["inputs"]["fps"] = params.get("fps", 16)
-                if "frame_count" in node["inputs"]:
-                    node["inputs"]["frame_count"] = params.get("frames", 85)
+            elif node_type in ["VideoLinearCFGGuidance", "VHS_VideoCombine"]:
+                if "inputs" in node:
+                    if "frame_rate" in node["inputs"]:
+                        node["inputs"]["frame_rate"] = params.get("fps", 16)
+                    if "frames" in node["inputs"]:
+                        node["inputs"]["frames"] = params.get("frames", 85)
         
-        logger.info("✅ Workflow customized successfully")
+        logger.info(f"✅ Workflow customized for effect: {params['effect']}")
         return workflow
         
     except Exception as e:
@@ -344,26 +251,23 @@ def customize_workflow(workflow: Dict, params: Dict) -> Dict:
 def submit_workflow(workflow: Dict) -> Optional[str]:
     """Submit workflow to ComfyUI"""
     try:
-        prompt_id = str(uuid.uuid4())
-        
-        payload = {
-            "prompt": workflow,
-            "client_id": prompt_id
-        }
-        
         response = requests.post(
             f"http://{COMFYUI_SERVER}/prompt",
-            json=payload,
+            json={"prompt": workflow},
             timeout=30
         )
+        response.raise_for_status()
         
-        if response.status_code == 200:
+        result = response.json()
+        prompt_id = result.get("prompt_id")
+        
+        if prompt_id:
             logger.info(f"✅ Workflow submitted: {prompt_id}")
             return prompt_id
         else:
-            logger.error(f"❌ Failed to submit workflow: {response.status_code}")
+            logger.error("❌ No prompt_id in response")
             return None
-            
+        
     except Exception as e:
         logger.error(f"❌ Error submitting workflow: {str(e)}")
         return None
@@ -374,8 +278,8 @@ def wait_for_completion(prompt_id: str, timeout: int = 300) -> Optional[str]:
         start_time = time.time()
         
         while time.time() - start_time < timeout:
-            # Check if process completed
             try:
+                # Check status
                 response = requests.get(f"http://{COMFYUI_SERVER}/history/{prompt_id}")
                 if response.status_code == 200:
                     history = response.json()
@@ -432,6 +336,10 @@ def handler(job):
         if not start_comfyui():
             return {"error": "Failed to start ComfyUI"}
         
+        # Load effects config if not loaded
+        if not effects_data and not load_effects_config():
+            return {"error": "Failed to load effects configuration"}
+        
         # Load workflow template
         workflow = load_workflow()
         if not workflow:
@@ -463,16 +371,20 @@ def handler(job):
         
         logger.info(f"🎭 Processing effect: {params['effect']}")
         
+        # Customize workflow
         workflow = customize_workflow(workflow, params)
         
+        # Submit workflow
         prompt_id = submit_workflow(workflow)
         if not prompt_id:
             return {"error": "Failed to submit workflow"}
         
+        # Wait for completion
         video_path = wait_for_completion(prompt_id)
         if not video_path:
             return {"error": "Video generation failed or timed out"}
         
+        # Encode result
         video_base64 = encode_video_to_base64(video_path)
         if not video_base64:
             return {"error": "Failed to encode output video"}
@@ -500,11 +412,9 @@ def handler(job):
 
 # Initialize on startup
 if __name__ == "__main__":
-    logger.info("🚀 Initializing AI-Avatarka Worker (Python 3.12 Compatible)...")
-    logger.info("ℹ️ SageAttention will be built and ComfyUI started with --use-sage-attention flag")
-    
-    load_effects_config()
+    logger.info("🚀 Initializing AI-Avatarka Worker...")
+    logger.info("✅ Using hearmeman base image with SageAttention pre-installed")
+    logger.info("🔧 Will use venv Python with --use-sage-attention flag")
     
     logger.info("🎯 Starting RunPod serverless worker...")
-    logger.info("⏳ Ready for jobs...")
     runpod.serverless.start({"handler": handler})
