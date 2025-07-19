@@ -1,4 +1,4 @@
-# AI-Avatarka - Fixed git clone issues with hearmeman base
+# AI-Avatarka - Build SageAttention at runtime like hearmeman
 FROM hearmeman/comfyui-wan-template:v2
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -6,86 +6,80 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     COMFYUI_PATH="/workspace/ComfyUI"
 
-# Install ONLY RunPod serverless and gdown - DON'T TOUCH BASE IMAGE DEPENDENCIES
+# Install build dependencies (needed for runtime SageAttention compilation)
+RUN apt-get update && apt-get install -y git build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
 RUN pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
 
-# Copy project files
-COPY src/handler.py /workspace/src/handler.py
-COPY builder/ /workspace/builder/
-COPY prompts/ /workspace/prompts/
-COPY workflow/ /workspace/workflow/
-COPY worker-config.json /workspace/
+# Copy and install requirements (EXCLUDING sageattention AND flash-attn)
+COPY requirements.txt /tmp/requirements.txt
+RUN sed -i '/sageattention/d' /tmp/requirements.txt && \
+    sed -i '/flash-attn/d' /tmp/requirements.txt && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
 
-# Debug: Check what's actually in hearmeman's base image
-RUN echo "🔍 DEBUGGING hearmeman's base image structure..." && \
-    echo "=== Root directory ===" && \
-    ls -la / | head -20 && \
-    echo "=== Workspace directory ===" && \
-    ls -la /workspace/ 2>/dev/null || echo "No /workspace directory" && \
-    echo "=== Looking for ComfyUI ===" && \
-    find / -name "ComfyUI" -type d 2>/dev/null | head -5 && \
-    echo "=== ComfyUI contents (if exists) ===" && \
-    ls -la /ComfyUI/ 2>/dev/null || echo "No /ComfyUI directory" && \
-    ls -la /workspace/ComfyUI/ 2>/dev/null || echo "No /workspace/ComfyUI directory"
+# Debug: Check what's in the base image
+RUN echo "🔍 Checking base image contents..." && \
+    ls -la /workspace/ || echo "No /workspace directory" && \
+    find / -name "ComfyUI" -type d 2>/dev/null || echo "No ComfyUI directory found"
 
-# Debug: Check ComfyUI structure before downloading models
-RUN echo "🔍 Checking ComfyUI structure before model downloads..." && \
-    ls -la /workspace/ComfyUI/ && \
-    echo "=== Models directory ===" && \
-    ls -la /workspace/ComfyUI/models/ 2>/dev/null || echo "No models directory" && \
-    echo "=== Creating missing model dirs ===" && \
-    mkdir -p /workspace/ComfyUI/models/diffusion_models \
-             /workspace/ComfyUI/models/vae \
-             /workspace/ComfyUI/models/text_encoders \
-             /workspace/ComfyUI/models/clip_vision \
-             /workspace/ComfyUI/models/loras && \
-    echo "=== After mkdir ===" && \
-    ls -la /workspace/ComfyUI/models/
+# Ensure ComfyUI is properly installed
+RUN if [ ! -f "/workspace/ComfyUI/main.py" ]; then \
+        echo "🔧 Installing ComfyUI..."; \
+        mkdir -p /workspace && \
+        cd /workspace && \
+        git clone https://github.com/comfyanonymous/ComfyUI.git && \
+        cd ComfyUI && \
+        pip install -r requirements.txt; \
+    else \
+        echo "✅ ComfyUI already present"; \
+    fi
 
-# Copy our workflow
-RUN cp /workspace/workflow/* /workspace/ComfyUI/workflow/ 2>/dev/null || echo "No workflow files"
+# Verify ComfyUI installation
+RUN echo "🔍 Verifying ComfyUI installation..." && \
+    ls -la /workspace/ComfyUI/main.py && \
+    echo "✅ ComfyUI main.py found"
 
-# Install custom nodes with proper error handling
-RUN echo "📦 Installing custom nodes with error handling..." && \
+# Create custom_nodes directory and install custom nodes
+RUN mkdir -p /workspace/ComfyUI/custom_nodes && \
     cd /workspace/ComfyUI/custom_nodes && \
-    pwd && \
-    ls -la . && \
-    echo "Cloning WanVideoWrapper..." && \
-    git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git || echo "Failed to clone WanVideoWrapper" && \
-    echo "Cloning VideoHelperSuite..." && \
-    git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git || echo "Failed to clone VideoHelperSuite" && \
-    echo "Cloning essentials..." && \
-    git clone https://github.com/cubiq/ComfyUI_essentials.git || echo "Failed to clone essentials" && \
-    echo "Custom nodes clone attempts completed" && \
-    ls -la .
+    echo "📦 Installing custom nodes..." && \
+    git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git && \
+    git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git && \
+    git clone https://github.com/cubiq/ComfyUI_essentials.git
 
-# Install custom node requirements (safe version)
-RUN echo "📋 Installing custom node requirements..." && \
-    for dir in /workspace/ComfyUI/custom_nodes/*/; do \
-        if [ -d "$dir" ] && [ -f "$dir/requirements.txt" ]; then \
-            echo "Processing requirements for $(basename $dir)"; \
-            cp "$dir/requirements.txt" "$dir/requirements.txt.backup"; \
-            sed -i '/sageattention/d; /torch/d; /triton/d; /xformers/d; /numpy/d; /scipy/d' "$dir/requirements.txt"; \
-            if [ -s "$dir/requirements.txt" ]; then \
-                pip install --no-cache-dir -r "$dir/requirements.txt" || echo "Failed to install requirements for $(basename $dir)"; \
-            else \
-                echo "No safe requirements left for $(basename $dir)"; \
-            fi; \
+# Install custom node requirements (but skip any that try to reinstall SageAttention)
+RUN for dir in /workspace/ComfyUI/custom_nodes/*/; do \
+        if [ -f "$dir/requirements.txt" ]; then \
+            echo "Installing requirements for $(basename $dir)"; \
+            sed -i '/sageattention/d' "$dir/requirements.txt"; \
+            pip install --no-cache-dir -r "$dir/requirements.txt"; \
         fi; \
     done
 
-# Clean up
+# Create model directories
+RUN mkdir -p /workspace/ComfyUI/models/diffusion_models \
+             /workspace/ComfyUI/models/vae \
+             /workspace/ComfyUI/models/text_encoders \
+             /workspace/ComfyUI/models/clip_vision \
+             /workspace/ComfyUI/models/loras \
+             /workspace/ComfyUI/input \
+             /workspace/ComfyUI/output
+
+# Copy project files
+COPY workflow/ /workspace/ComfyUI/workflow/
+COPY prompts/ /workspace/prompts/
+COPY lora/ /workspace/ComfyUI/models/loras/
+COPY builder/ /workspace/builder/
+COPY src/handler.py /workspace/src/handler.py
+
+# Clean up build files to reduce image size
 RUN rm -rf /workspace/builder/ /tmp/* /var/lib/apt/lists/*
 
-# Create startup script
-RUN echo '#!/usr/bin/env python3\n\
-import sys\n\
-sys.path.append("/workspace/src")\n\
-from handler import handler\n\
-import runpod\n\
-print("🚀 Starting AI-Avatarka handler...")\n\
-runpod.serverless.start({"handler": handler})' > /workspace/start.py && \
-    chmod +x /workspace/start.py
+# Create startup script that uses our new handler
+RUN echo '#!/usr/bin/env python3\nimport sys\nsys.path.append("/workspace/src")\nfrom handler import handler\nimport runpod\nprint("🚀 Starting AI-Avatarka handler...")\nrunpod.serverless.start({"handler": handler})' > /workspace/start.py && chmod +x /workspace/start.py
 
 WORKDIR /workspace
 CMD ["python", "/workspace/start.py"]

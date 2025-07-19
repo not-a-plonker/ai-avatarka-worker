@@ -68,7 +68,7 @@ def clear_triton_cache():
         logger.warning(f"⚠️ Error clearing triton cache: {e}")
         return False
 
-def download_models_and_loras():
+and_loras():
     """Download models and LoRAs using the dedicated download script"""
     global models_downloaded
     
