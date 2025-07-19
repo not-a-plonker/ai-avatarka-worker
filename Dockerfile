@@ -28,17 +28,19 @@ RUN echo "🔍 DEBUGGING hearmeman's base image structure..." && \
     ls -la /ComfyUI/ 2>/dev/null || echo "No /ComfyUI directory" && \
     ls -la /workspace/ComfyUI/ 2>/dev/null || echo "No /workspace/ComfyUI directory"
 
-# Create model directories only if ComfyUI exists
-RUN if [ -d "/workspace/ComfyUI" ]; then \
-        mkdir -p /workspace/ComfyUI/models/diffusion_models \
-                 /workspace/ComfyUI/models/vae \
-                 /workspace/ComfyUI/models/text_encoders \
-                 /workspace/ComfyUI/models/clip_vision \
-                 /workspace/ComfyUI/models/loras \
-                 /workspace/ComfyUI/input \
-                 /workspace/ComfyUI/output \
-                 /workspace/ComfyUI/workflow; \
-    fi
+# Debug: Check ComfyUI structure before downloading models
+RUN echo "🔍 Checking ComfyUI structure before model downloads..." && \
+    ls -la /workspace/ComfyUI/ && \
+    echo "=== Models directory ===" && \
+    ls -la /workspace/ComfyUI/models/ 2>/dev/null || echo "No models directory" && \
+    echo "=== Creating missing model dirs ===" && \
+    mkdir -p /workspace/ComfyUI/models/diffusion_models \
+             /workspace/ComfyUI/models/vae \
+             /workspace/ComfyUI/models/text_encoders \
+             /workspace/ComfyUI/models/clip_vision \
+             /workspace/ComfyUI/models/loras && \
+    echo "=== After mkdir ===" && \
+    ls -la /workspace/ComfyUI/models/
 
 # Copy our workflow
 RUN cp /workspace/workflow/* /workspace/ComfyUI/workflow/ 2>/dev/null || echo "No workflow files"
