@@ -28,32 +28,17 @@ RUN echo "🔍 DEBUGGING hearmeman's base image structure..." && \
     ls -la /ComfyUI/ 2>/dev/null || echo "No /ComfyUI directory" && \
     ls -la /workspace/ComfyUI/ 2>/dev/null || echo "No /workspace/ComfyUI directory"
 
-# Determine ComfyUI location and ensure it exists
-RUN if [ -d "/ComfyUI" ]; then \
-        echo "✅ Found ComfyUI at /ComfyUI"; \
-        export COMFYUI_LOCATION="/ComfyUI"; \
-    elif [ -d "/workspace/ComfyUI" ]; then \
-        echo "✅ Found ComfyUI at /workspace/ComfyUI"; \
-        export COMFYUI_LOCATION="/workspace/ComfyUI"; \
-    else \
-        echo "🔧 Installing ComfyUI at /workspace/ComfyUI..."; \
-        mkdir -p /workspace && \
-        cd /workspace && \
-        git clone https://github.com/comfyanonymous/ComfyUI.git && \
-        export COMFYUI_LOCATION="/workspace/ComfyUI"; \
-    fi && \
-    echo "ComfyUI location: $COMFYUI_LOCATION"
-
-# Create model directories (use absolute paths to avoid issues)
-RUN mkdir -p /workspace/ComfyUI/models/diffusion_models \
-             /workspace/ComfyUI/models/vae \
-             /workspace/ComfyUI/models/text_encoders \
-             /workspace/ComfyUI/models/clip_vision \
-             /workspace/ComfyUI/models/loras \
-             /workspace/ComfyUI/input \
-             /workspace/ComfyUI/output \
-             /workspace/ComfyUI/workflow \
-             /workspace/ComfyUI/custom_nodes
+# Create model directories only if ComfyUI exists
+RUN if [ -d "/workspace/ComfyUI" ]; then \
+        mkdir -p /workspace/ComfyUI/models/diffusion_models \
+                 /workspace/ComfyUI/models/vae \
+                 /workspace/ComfyUI/models/text_encoders \
+                 /workspace/ComfyUI/models/clip_vision \
+                 /workspace/ComfyUI/models/loras \
+                 /workspace/ComfyUI/input \
+                 /workspace/ComfyUI/output \
+                 /workspace/ComfyUI/workflow; \
+    fi
 
 # Copy our workflow
 RUN cp /workspace/workflow/* /workspace/ComfyUI/workflow/ 2>/dev/null || echo "No workflow files"
