@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir runpod~=1.7.9 gdown>=5.0.0
 COPY requirements.txt /tmp/requirements.txt
 RUN sed -i '/sageattention/d' /tmp/requirements.txt && \
     sed -i '/flash-attn/d' /tmp/requirements.txt && \
-    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
 # Debug: Check what's in the base image
