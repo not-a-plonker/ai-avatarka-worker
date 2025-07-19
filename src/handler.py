@@ -81,7 +81,7 @@ def download_models_and_loras():
         
         # Run the dedicated download script
         result = subprocess.run([
-            sys.executable, "/workspace/builder/download_models.py"
+            "/opt/venv/bin/python", "/workspace/builder/download_models.py"
         ], capture_output=True, text=True, timeout=3600)  # 1 hour timeout
         
         if result.returncode == 0:
