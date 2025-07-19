@@ -1,4 +1,4 @@
-# AI-Avatarka - Build SageAttention at runtime like hearmeman
+# AI-Avatarka - Build SageAttention at runtime like hearmeman suka
 FROM hearmeman/comfyui-wan-template:v2
 
 ENV DEBIAN_FRONTEND=noninteractive \

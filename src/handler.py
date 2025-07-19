@@ -1,6 +1,6 @@
 """
 AI-Avatarka RunPod Serverless Worker Handler
-Fixed to use venv Python and download models at startup like hearmeman
+Fixed to use venv Python and download models at startup like hearmeman suka
 """
 
 import runpod
