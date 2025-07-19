@@ -94,59 +94,61 @@ RUN echo "📦 Downloading Wan 2.1 models..." && \
     \
     echo "✅ Base models downloaded"
 
-# Create LoRA download script
-RUN echo '#!/usr/bin/env python3
-import subprocess
-import sys
-
-# Install gdown if not available
-try:
-    import gdown
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown", "--no-cache-dir"])
-    import gdown
-
-# LoRA files with Google Drive IDs
-lora_files = {
-    "ghostrider.safetensors": "1fr-o0SOF2Ekqjjv47kXwpbtTyQ4bX67Q",
-    "son_goku.safetensors": "1DQFMntN2D-7kGm5myeRzFXqW9TdckIen", 
-    "westworld.safetensors": "1tK17DuwniI6wrFhPuoeBIb1jIdnn6xZv",
-    "hulk.safetensors": "1LC-OF-ytSy9vnAkJft5QfykIW-qakrJg",
-    "super_saian.safetensors": "1DdUdskRIFgb5td_DAsrRIJwdrK5DnkMZ",
-    "jumpscare.safetensors": "15oW0m7sudMBpoGGREHjZAtC92k6dspWq",
-    "kamehameha.safetensors": "1c9GAVuwUYdoodAcU5svvEzHzsJuE19mi",
-    "melt_it.safetensors": "139fvofiYDVZGGTHDUsBrAbzNLQ0TFKJf",
-    "mindblown.safetensors": "15Q3lQ9U_0TwWgf8pNmovuHB1VOo7js3A",
-    "muscles.safetensors": "1_FxWR_fZnWaI3Etxr19BAfJGUtqLHz88",
-    "crush_it.safetensors": "1q_xAeRppHGc3caobmAk4Cpi-3PBJA97i",
-    "samurai.safetensors": "1-N3XS5wpRcI95BJUnRr3PnMp7oCVAF3u",
-    "fus_ro_dah.safetensors": "1-ruIAhaVzHPCERvh6cFY-s1b-s5dxmRA",
-    "360.safetensors": "1S637vBYR21UKmTM3KI-S2cxrwKu3GDDR",
-    "vip_50_epochs.safetensors": "1NcnSdMO4zew5078T3aQTK9cfxcnoMtjN",
-    "puppy.safetensors": "1DZokL-bwacMIggimUlj2LAme_f4pOWdv",
-    "snow_white.safetensors": "1geUbpu-Q-N4VxM6ncbC2-Y9Tidqbpt8D"
-}
-
-# Download each LoRA file
-success_count = 0
-for filename, file_id in lora_files.items():
-    try:
-        url = f"https://drive.google.com/uc?id={file_id}"
-        output_path = f"/workspace/ComfyUI/models/loras/{filename}"
-        print(f"Downloading {filename}...")
-        gdown.download(url, output_path, quiet=False, fuzzy=True)
-        success_count += 1
-        print(f"✅ Downloaded {filename}")
-    except Exception as e:
-        print(f"❌ Failed to download {filename}: {e}")
-
-print(f"✅ Downloaded {success_count}/{len(lora_files)} LoRA files")
-' > /tmp/download_loras.py && chmod +x /tmp/download_loras.py
-
-# Download LoRA files
+# Download LoRA files using individual gdown commands
 RUN echo "🎭 Downloading LoRA files from Google Drive..." && \
-    /opt/venv/bin/python /tmp/download_loras.py && \
-    rm /tmp/download_loras.py && \
+    /opt/venv/bin/python -m pip install gdown --no-cache-dir && \
+    \
+    echo "Downloading ghostrider.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1fr-o0SOF2Ekqjjv47kXwpbtTyQ4bX67Q" -O /workspace/ComfyUI/models/loras/ghostrider.safetensors && \
+    \
+    echo "Downloading son_goku.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1DQFMntN2D-7kGm5myeRzFXqW9TdckIen" -O /workspace/ComfyUI/models/loras/son_goku.safetensors && \
+    \
+    echo "Downloading westworld.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1tK17DuwniI6wrFhPuoeBIb1jIdnn6xZv" -O /workspace/ComfyUI/models/loras/westworld.safetensors && \
+    \
+    echo "Downloading hulk.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1LC-OF-ytSy9vnAkJft5QfykIW-qakrJg" -O /workspace/ComfyUI/models/loras/hulk.safetensors && \
+    \
+    echo "Downloading super_saian.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1DdUdskRIFgb5td_DAsrRIJwdrK5DnkMZ" -O /workspace/ComfyUI/models/loras/super_saian.safetensors && \
+    \
+    echo "Downloading jumpscare.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=15oW0m7sudMBpoGGREHjZAtC92k6dspWq" -O /workspace/ComfyUI/models/loras/jumpscare.safetensors && \
+    \
+    echo "Downloading kamehameha.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1c9GAVuwUYdoodAcU5svvEzHzsJuE19mi" -O /workspace/ComfyUI/models/loras/kamehameha.safetensors && \
+    \
+    echo "Downloading melt_it.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=139fvofiYDVZGGTHDUsBrAbzNLQ0TFKJf" -O /workspace/ComfyUI/models/loras/melt_it.safetensors && \
+    \
+    echo "Downloading mindblown.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=15Q3lQ9U_0TwWgf8pNmovuHB1VOo7js3A" -O /workspace/ComfyUI/models/loras/mindblown.safetensors && \
+    \
+    echo "Downloading muscles.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1_FxWR_fZnWaI3Etxr19BAfJGUtqLHz88" -O /workspace/ComfyUI/models/loras/muscles.safetensors && \
+    \
+    echo "Downloading crush_it.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1q_xAeRppHGc3caobmAk4Cpi-3PBJA97i" -O /workspace/ComfyUI/models/loras/crush_it.safetensors && \
+    \
+    echo "Downloading samurai.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1-N3XS5wpRcI95BJUnRr3PnMp7oCVAF3u" -O /workspace/ComfyUI/models/loras/samurai.safetensors && \
+    \
+    echo "Downloading fus_ro_dah.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1-ruIAhaVzHPCERvh6cFY-s1b-s5dxmRA" -O /workspace/ComfyUI/models/loras/fus_ro_dah.safetensors && \
+    \
+    echo "Downloading 360.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1S637vBYR21UKmTM3KI-S2cxrwKu3GDDR" -O /workspace/ComfyUI/models/loras/360.safetensors && \
+    \
+    echo "Downloading vip_50_epochs.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1NcnSdMO4zew5078T3aQTK9cfxcnoMtjN" -O /workspace/ComfyUI/models/loras/vip_50_epochs.safetensors && \
+    \
+    echo "Downloading puppy.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1DZokL-bwacMIggimUlj2LAme_f4pOWdv" -O /workspace/ComfyUI/models/loras/puppy.safetensors && \
+    \
+    echo "Downloading snow_white.safetensors..." && \
+    /opt/venv/bin/python -m gdown "https://drive.google.com/uc?id=1geUbpu-Q-N4VxM6ncbC2-Y9Tidqbpt8D" -O /workspace/ComfyUI/models/loras/snow_white.safetensors && \
+    \
     echo "✅ LoRA files downloaded"
 
 # Final verification
