@@ -68,39 +68,6 @@ def clear_triton_cache():
         logger.warning(f"⚠️ Error clearing triton cache: {e}")
         return False
 
-def download_models_and_loras():
-
-    """Download models and LoRAs using the dedicated download script"""
-    global models_downloaded
-    
-    if models_downloaded:
-        return True
-        
-    try:
-        logger.info("🔧 Running model download script...")
-        
-        # Run the dedicated download script
-        result = subprocess.run([
-            "/opt/venv/bin/python", "/workspace/builder/download_models.py"
-        ], capture_output=True, text=True, timeout=3600)  # 1 hour timeout
-        
-        if result.returncode == 0:
-            logger.info("✅ Model download script completed successfully")
-            models_downloaded = True
-            return True
-        else:
-            logger.error(f"❌ Model download script failed:")
-            logger.error(f"STDOUT: {result.stdout}")
-            logger.error(f"STDERR: {result.stderr}")
-            return False
-        
-    except subprocess.TimeoutExpired:
-        logger.error("❌ Model download script timed out")
-        return False
-    except Exception as e:
-        logger.error(f"❌ Error running model download script: {e}")
-        return False
-
 def load_effects_config():
     """Load effects configuration"""
     global effects_data
