@@ -324,21 +324,21 @@ def encode_video_to_base64(video_path: str) -> Optional[str]:
         return None
 
 def initialize_worker():
-    """Initialize worker - download models and LoRAs at startup"""
+    """Initialize worker - models already downloaded during build"""
     try:
         logger.info("🚀 Initializing AI-Avatarka Worker...")
+        logger.info("✅ Models already downloaded during Docker build")
         
-        # Run the dedicated download script
-        if not download_models_and_loras():
-            logger.error("❌ Failed to download required models and LoRAs")
-            return False
-        
-        # Load effects configuration
+        # Just load effects configuration
         if not load_effects_config():
             logger.warning("⚠️ Effects config not loaded - using defaults")
         
         logger.info("✅ Worker initialization complete")
         return True
+        
+    except Exception as e:
+        logger.error(f"❌ Worker initialization failed: {e}")
+        return False
         
     except Exception as e:
         logger.error(f"❌ Worker initialization failed: {e}")
