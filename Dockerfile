@@ -69,7 +69,7 @@ RUN mkdir -p /workspace/ComfyUI/models/diffusion_models \
              /workspace/ComfyUI/output
 
 # Copy project files
-COPY workflow/ /workspace/ComfyUI/workflow/
+COPY workflow/ /workspace/workflow/
 COPY prompts/ /workspace/prompts/
 COPY lora/ /workspace/ComfyUI/models/loras/
 COPY src/handler.py /workspace/src/handler.py
