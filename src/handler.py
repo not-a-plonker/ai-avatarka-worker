@@ -110,7 +110,7 @@ def start_comfyui():
             "/opt/venv/bin/python", "main.py",
             "--listen", "127.0.0.1",
             "--port", "8188"
-            # Temporarily removed: "--use-sage-attention"
+            "--use-sage-attention"
         ]
         
         logger.info("🚀 Starting ComfyUI (venv Python, SageAttention disabled for testing)")
