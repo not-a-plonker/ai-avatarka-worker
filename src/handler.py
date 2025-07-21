@@ -195,51 +195,69 @@ def process_input_image(image_data: str) -> Optional[str]:
         logger.error(f"❌ Error processing input image: {str(e)}")
         return None
 
-def customize_workflow(workflow: Dict, params: Dict) -> Dict:
+ddef customize_workflow(workflow: Dict, params: Dict) -> Dict:
     """Customize workflow with effect and parameters"""
     try:
         # Get effect configuration
-        effect_config = effects_data.get(params['effect'], {})
+        effect_config = effects_data.get(params['effect'], {}) if effects_data else {}
         
-        # Update workflow nodes based on your workflow structure
+        # Update workflow nodes based on WanVideo workflow structure
         for node_id, node in workflow.items():
             node_type = node.get("class_type", "")
             
-            # Update image input node
+            # Update image input node (LoadImage)
             if node_type == "LoadImage":
                 if "inputs" in node:
                     node["inputs"]["image"] = params["image_filename"]
             
-            # Update sampling parameters
-            elif node_type == "KSampler":
+            # Update LoRA selection
+            elif node_type == "WanVideoLoraSelect":
+                if "inputs" in node:
+                    lora_name = effect_config.get("lora_name", f"{params['effect']}.safetensors")
+                    node["inputs"]["lora_name"] = lora_name
+                    node["inputs"]["lora"] = lora_name  # Both fields need the same value
+            
+            # Update text prompts (WanVideoTextEncode)
+            elif node_type == "WanVideoTextEncode":
+                if "inputs" in node:
+                    # Use custom prompt or effect default
+                    positive_prompt = params.get("prompt", effect_config.get("prompt", ""))
+                    negative_prompt = params.get("negative_prompt", effect_config.get("negative_prompt", ""))
+                    
+                    node["inputs"]["positive_prompt"] = positive_prompt
+                    node["inputs"]["negative_prompt"] = negative_prompt
+            
+            # Update sampling parameters (WanVideoSampler)
+            elif node_type == "WanVideoSampler":
                 if "inputs" in node:
                     node["inputs"]["steps"] = params.get("steps", 10)
                     node["inputs"]["cfg"] = params.get("cfg", 6)
                     node["inputs"]["seed"] = params.get("seed", -1)
+                    node["inputs"]["frames"] = params.get("frames", 85)
             
-            # Update text prompts
-            elif node_type == "CLIPTextEncode":
-                if "inputs" in node and "text" in node["inputs"]:
-                    # Use custom prompt or effect default
-                    if params.get("prompt"):
-                        node["inputs"]["text"] = params["prompt"]
-                    elif effect_config.get("prompt"):
-                        node["inputs"]["text"] = effect_config["prompt"]
-            
-            # Update LoRA loader for effect
-            elif node_type == "LoraLoader":
-                if "inputs" in node and effect_config.get("lora_name"):
-                    node["inputs"]["lora_name"] = effect_config["lora_name"]
-            
-            # Update video parameters
-            elif node_type in ["VideoLinearCFGGuidance", "VHS_VideoCombine"]:
+            # Update video output parameters
+            elif node_type == "VHS_VideoCombine":
                 if "inputs" in node:
-                    if "frame_rate" in node["inputs"]:
-                        node["inputs"]["frame_rate"] = params.get("fps", 16)
-                    if "frames" in node["inputs"]:
-                        node["inputs"]["frames"] = params.get("frames", 85)
+                    node["inputs"]["frame_rate"] = params.get("fps", 16)
+            
+            # Update image encoding parameters
+            elif node_type == "WanVideoImageClipEncode":
+                if "inputs" in node:
+                    node["inputs"]["generation_width"] = params.get("width", 720)
+                    node["inputs"]["generation_height"] = params.get("height", 720)
+                    node["inputs"]["num_frames"] = params.get("frames", 85)
+            
+            # Handle attention mode for SageAttention compatibility
+            elif node_type == "WanVideoModelLoader":
+                if "inputs" in node:
+                    # Change attention mode if SageAttention not available
+                    node["inputs"]["attention_mode"] = "xformers"  # Fallback from "sageattn"
         
         logger.info(f"✅ Workflow customized for effect: {params['effect']}")
+        return workflow
+        
+    except Exception as e:
+        logger.error(f"❌ Error customizing workflow: {str(e)}")
         return workflow
         
     except Exception as e:
@@ -254,6 +272,13 @@ def submit_workflow(workflow: Dict) -> Optional[str]:
             json={"prompt": workflow},
             timeout=30
         )
+        
+        # Log the response before raising for status
+        if response.status_code != 200:
+            logger.error(f"❌ ComfyUI rejected workflow:")
+            logger.error(f"Status: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            
         response.raise_for_status()
         
         result = response.json()
