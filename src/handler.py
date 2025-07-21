@@ -80,7 +80,7 @@ def load_effects_config():
         return False
 
 def start_comfyui():
-    """Start ComfyUI using venv Python (temporarily without SageAttention)"""
+    """Start ComfyUI using venv Python WITHOUT SageAttention for testing"""
     global comfyui_process, comfyui_initialized
     
     if comfyui_initialized:
@@ -105,12 +105,12 @@ def start_comfyui():
             'TRITON_CACHE_DIR': '/tmp/triton_runtime'
         })
         
-        # Use venv Python (temporarily without --use-sage-attention)
+        # Use venv Python
         cmd = [
-            "/opt/venv/bin/python", "main.py",
-            "--listen", "127.0.0.1",
-            "--port", "8188"
-            "--use-sage-attention"
+        "/opt/venv/bin/python", "main.py",
+        "--listen", "127.0.0.1",
+        "--port", "8188"
+        # Removed --use-sage-attention flag
         ]
         
         logger.info("🚀 Starting ComfyUI (venv Python, SageAttention disabled for testing)")
