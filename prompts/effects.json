@@ -1,0 +1,115 @@
+{
+  "effects": {
+    "son_goku": {
+      "lora": "son_goku.safetensors",
+      "prompt": "spsaiyaren, the person fast gradually transforms into be a spsaiyaren Super Saiyan Form person with yellow hair, Energy explodes around the person to form a golden aura. The rocky ground gradually cracks with the energy fluctuations.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "westworld": {
+      "lora": "westworld.safetensors",
+      "prompt": "A person stares into the camera. The r8b8t1c robotic face reveal commences, lines forming as a metallic mask replaces his features, his robotic eyes glowing red",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "hulk": {
+      "lora": "hulk.safetensors",
+      "prompt": "The video shows a person. Slowly, the h01k green hulk transformation begins. Person's muscles start to swell, veins bulge beneath his skin, and their face tightens with strain. Their skin gradually shifts to green as their body continues to grow. Their clothes begin to tear apart under the pressure. The transformation completes as the Hulk emerges, standing tall and roaring.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "super_saian": {
+      "lora": "super_saian.safetensors", 
+      "prompt": "A person clenches their fists with an intense look. Their hair brightens to glowing yellow, spiking up as gold energy surges around their body. The background pulses with yellow light, and sparks crackle in the air during his 5up3r super saiyan transformation, real life style.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "jumpscare": {
+      "lora": "jumpscare.safetensors",
+      "prompt": "The video shows a person looking at the camara, then the j432mpscare jumpscare occurs, revealing a distorted and monstrous face with glowing red eyes, filling the frame and accompanied by a loud scream.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "kamehameha": {
+      "lora": "kamehameha.safetensors",
+      "prompt": "A person looks intensely forward. The person begins to charge a bright, glowing blue K4m3h4m3h4 energy effect between their hands. The person then thrusts their hands forward, unleashing a massive, bright blue and white beam of energy.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "melt_it": {
+      "lora": "melt_it.safetensors",
+      "prompt": "The video shows a person. The person then goes through a m3lt1ng process, with the person m3lt1ng into a liquid, forming a puddle.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "mindblown": {
+      "lora": "mindblown.safetensors",
+      "prompt": "m1ndbl0wn, a person's head suddenly explodes as if a handgrenade went off inside of it. The head is blown apart, chunks of skull and bone are thrown outwards and away with fire. The head is completely gone and only a hole is left where the head should be.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "muscles": {
+      "lora": "muscles.safetensors",
+      "prompt": "A person t2k1s takes off clothes revealing a lean muscular body and shows off muscles, looking towards the camera.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "crush_it": {
+      "lora": "crush_it.safetensors",
+      "prompt": "The video begins with a person. A hydraulic press positioned above slowly descends towards the person. Upon contact, the hydraulic press c5us4 crushes them, deforming and flattening the person, causing the pesron to collapse inward until the person is no longer recognizable.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "ghostrider": {
+      "lora": "ghostrider.safetensors",
+      "prompt": "in this video a person transforms into a Ghost Rider. Their head transforms into a skull in the flames, their eye sockets flicker with soul fire, flames and smoke spew out of their mouth, their clothes turn into ashes in the flames, and person's bones are exposed",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "samurai": {
+      "lora": "samurai.safetensors",
+      "prompt": "The person's calm expression fades into a determined gaze, as a katana materializes, beginning the 54mur41 samurai transformation and the person is now a samurai with a fierce expression, standing in front of a breathtaking mountain range, a warrior ready for battle.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "fus_ro_dah": {
+      "lora": "fus_ro_dah.safetensors",
+      "prompt": "A person is hit with the fus_r0_d4h force push effect and is sent flying backwards across the street. The body remains intact although severely broken from the impact",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "360": {
+      "lora": "360.safetensors",
+      "prompt": "The video shows a person. The person performs a r0t4tion 360 degrees rotation.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "vip_50_epochs": {
+      "lora": "vip_50_epochs.safetensors",
+      "prompt": "The video begins with an image of a person. Then the v1p red carpet transformation appears. The person is shown wearing a black dress, with gold jewelry around their neck and ears. The image is again of the person looking straight at the camera against a more lighted gray background. The v1p red carpet transformation continues, the person is now on the red carpet with photographers taking pictures and other people behind a barricade to the sides. The person is wearing the same black dress and jewelry, in focus at the center of the frame.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "puppy": {
+      "lora": "puppy.safetensors",
+      "prompt": "The video opens with a portrait of a person. The pu11y puppy effect then begins, as puppies begin to gather and surround the person. The person is now holding a puppy in their arms. the person's hair is left unchanged",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    },
+    "snow_white": {
+      "lora": "snow_white.safetensors",
+      "prompt": "The video begins with a portrait of a person. The scene cuts to the person in the sn0w_wh1t3 Snow White transformation. The person is now wearing the classic Snow White dress, and their hair is pulled back in a braid. The person is holding a red apple in their right hand. The background has changed to a forest. The background and lighting add to the Snow White scene.",
+      "negative_prompt": "bad quality video, artifacts",
+      "lora_strength": 1.0
+    }
+  },
+  "default_settings": {
+    "steps": 10,
+    "cfg": 6,
+    "frames": 85,
+    "fps": 16,
+    "width": 720,
+    "height": 720,
+    "seed": -1
+  }
+}

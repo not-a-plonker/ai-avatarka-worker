@@ -1,0 +1,25 @@
+# PyTorch and CUDA (installed separately in Dockerfile for specific versions)
+# torch==2.7.0+cu128
+# torchvision==0.22.0+cu128  
+# torchaudio==2.7.0
+
+# RunPod and serverless
+runpod~=1.7.9
+requests>=2.28.0
+websocket-client>=1.4.0
+
+# Image processing
+Pillow>=9.0.0
+
+# GPU optimization
+onnxruntime-gpu>=1.15.0
+triton>=2.1.0
+
+# Utility packages
+gdown>=4.7.0
+
+# SageAttention (installed from source in Dockerfile)
+# sageattention (compiled from source)
+
+# ComfyUI dependencies (installed via ComfyUI requirements.txt)
+# These are handled by ComfyUI's own requirements.txt file

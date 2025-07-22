@@ -1,0 +1,127 @@
+{
+  "name": "AI-Avatarka Wan 2.1 with SageAttention",
+  "description": "Professional-grade Image-to-Video transformation worker using Wan 2.1 14B model with SageAttention optimization. Supports 17 different transformation effects including Ghost Rider, Hulk, Super Saiyan, and more.",
+  "version": "1.0.0",
+  "author": "AI-Avatarka",
+  "category": "Video Generation",
+  "tags": ["image-to-video", "wan-2.1", "sageattention", "transformation", "effects"],
+  
+  "input_schema": {
+    "image": {
+      "type": "string",
+      "description": "Base64 encoded input image or data URL",
+      "required": true
+    },
+    "effect": {
+      "type": "string", 
+      "description": "Transformation effect to apply",
+      "enum": [
+        "ghostrider", "hulk", "son_goku", "super_saian", "westworld",
+        "jumpscare", "kamehameha", "melt_it", "mindblown", "muscles",
+        "crush_it", "samurai", "fus_ro_dah", "360", "vip_50_epochs",
+        "puppy", "snow_white"
+      ],
+      "default": "ghostrider"
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Custom prompt (optional, uses effect default if not provided)",
+      "required": false
+    },
+    "negative_prompt": {
+      "type": "string", 
+      "description": "Negative prompt (optional)",
+      "default": "bad quality video, artifacts"
+    },
+    "steps": {
+      "type": "integer",
+      "description": "Number of inference steps",
+      "minimum": 5,
+      "maximum": 50,
+      "default": 10
+    },
+    "cfg": {
+      "type": "number",
+      "description": "Classifier Free Guidance scale",
+      "minimum": 1.0,
+      "maximum": 20.0,
+      "default": 6.0
+    },
+    "frames": {
+      "type": "integer",
+      "description": "Number of video frames to generate",
+      "minimum": 16,
+      "maximum": 240,
+      "default": 85
+    },
+    "fps": {
+      "type": "integer",
+      "description": "Frames per second for output video",
+      "enum": [8, 12, 16, 24, 30],
+      "default": 16
+    },
+    "width": {
+      "type": "integer",
+      "description": "Output video width",
+      "enum": [480, 640, 720, 1024, 1280],
+      "default": 720
+    },
+    "height": {
+      "type": "integer", 
+      "description": "Output video height",
+      "enum": [480, 640, 720, 1024, 1280],
+      "default": 720
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Random seed (-1 for random)",
+      "default": -1
+    }
+  },
+
+  "output_schema": {
+    "video": {
+      "type": "string",
+      "description": "Base64 encoded output video"
+    },
+    "effect": {
+      "type": "string",
+      "description": "Applied effect name"
+    },
+    "prompt_id": {
+      "type": "string", 
+      "description": "ComfyUI prompt ID for tracking"
+    },
+    "filename": {
+      "type": "string",
+      "description": "Generated video filename"
+    },
+    "processing_time": {
+      "type": "number",
+      "description": "Processing timestamp"
+    },
+    "sage_attention_used": {
+      "type": "boolean",
+      "description": "Whether SageAttention was successfully used"
+    }
+  },
+
+  "hardware_requirements": {
+    "gpu_memory": "24GB+",
+    "recommended_gpu": ["RTX 4090", "RTX 5090", "A100", "H100"],
+    "cuda_version": "12.8+",
+    "python_version": "3.10"
+  },
+
+  "performance": {
+    "estimated_time_720p": "3-5 minutes on H100",
+    "estimated_time_480p": "2-3 minutes on H100", 
+    "features": [
+      "SageAttention optimization for 2-5x speedup",
+      "14B parameter Wan 2.1 model",
+      "17 professional transformation effects",
+      "Custom LoRA integrations",
+      "GPU memory optimizations"
+    ]
+  }
+}
