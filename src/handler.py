@@ -250,8 +250,8 @@ def customize_workflow(workflow: Dict, params: Dict) -> Dict:
             # Handle attention mode for SageAttention compatibility
             elif node_type == "WanVideoModelLoader":
                 if "inputs" in node:
-                    # Change attention mode if SageAttention not available
-                    node["inputs"]["attention_mode"] = "xformers"  # Fallback from "sageattn"
+                            # Use the most basic/compatible attention mode
+                    node["inputs"]["attention_mode"] = "sdpa"  # FSafe PyTorch default
         
         logger.info(f"✅ Workflow customized for effect: {params['effect']}")
         return workflow
