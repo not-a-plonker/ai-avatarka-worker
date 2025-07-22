@@ -195,7 +195,7 @@ def process_input_image(image_data: str) -> Optional[str]:
         logger.error(f"❌ Error processing input image: {str(e)}")
         return None
 
-ddef customize_workflow(workflow: Dict, params: Dict) -> Dict:
+def customize_workflow(workflow: Dict, params: Dict) -> Dict:
     """Customize workflow with effect and parameters"""
     try:
         # Get effect configuration
@@ -254,10 +254,6 @@ ddef customize_workflow(workflow: Dict, params: Dict) -> Dict:
                     node["inputs"]["attention_mode"] = "xformers"  # Fallback from "sageattn"
         
         logger.info(f"✅ Workflow customized for effect: {params['effect']}")
-        return workflow
-        
-    except Exception as e:
-        logger.error(f"❌ Error customizing workflow: {str(e)}")
         return workflow
         
     except Exception as e:
