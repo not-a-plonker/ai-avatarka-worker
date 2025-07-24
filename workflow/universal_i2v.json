@@ -5,7 +5,7 @@
       "base_precision": "bf16",
       "quantization": "fp8_e4m3fn",
       "load_device": "offload_device",
-      "attention_mode": "sdpa",
+      "attention_mode": "sageattn",
       "lora": ["41", 0]
     },
     "class_type": "WanVideoModelLoader",
@@ -22,8 +22,8 @@
       "tile_overlap_factor_width": 128,
       "tile_x": 2,
       "tile_y": 2,
-      "tile_stride_x": 1,
-      "tile_stride_y": 1,
+      "tile_stride_x": 8,
+      "tile_stride_y": 8,
       "vae": ["21", 0],
       "samples": ["27", 0]
     },
