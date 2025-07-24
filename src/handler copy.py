@@ -214,36 +214,116 @@ def load_effects_config():
         return False
 
 def start_comfyui():
-    """ComfyUI already started by start.sh - just check if it's ready"""
-    global comfyui_initialized
+    """Start ComfyUI with network storage"""
+    global comfyui_process, comfyui_initialized
     
     if comfyui_initialized:
         return True
     
     try:
-        logger.info("🔍 Checking if ComfyUI is already running (started by start.sh)...")
+        logger.info("🚀 Starting ComfyUI with network storage...")
         
-        # Just wait for the existing ComfyUI to be ready
-        for attempt in range(60):  # 1 minute timeout
+        # Validate network storage first
+        if not validate_network_storage():
+            logger.error("❌ Network storage validation failed")
+            return False
+        
+        # Activate network storage environment
+        if not activate_network_storage_environment():
+            logger.error("❌ Failed to activate network storage environment")
+            return False
+        
+        # Check ComfyUI environment
+        if not check_comfyui_environment():
+            logger.warning("⚠️ ComfyUI environment check failed, continuing anyway...")
+        
+        # Clear triton cache
+        clear_triton_cache()
+        time.sleep(2)
+        
+        # Change to ComfyUI directory
+        os.chdir(COMFYUI_PATH)
+        
+        # Set environment for optimal performance
+        env = os.environ.copy()
+        env.update({
+            'CUDA_VISIBLE_DEVICES': '0',
+            'PYTHONPATH': f"{COMFYUI_PATH}:{env.get('PYTHONPATH', '')}",
+            'PYTHONUNBUFFERED': 'true',
+            'TRITON_CACHE_DIR': '/tmp/triton_runtime',
+            'HF_HOME': '/workspace',
+            'VIRTUAL_ENV': NETWORK_STORAGE_VENV,
+            'PATH': f"{Path(NETWORK_STORAGE_VENV) / 'bin'}:{env.get('PATH', '')}"
+        })
+        
+        # Use the network storage Python executable
+        python_executable = str(Path(NETWORK_STORAGE_VENV) / "bin" / "python")
+        
+        # Start ComfyUI (SageAttention will be handled by workflow nodes)
+        cmd = [
+            python_executable, "-u", "main.py",
+            "--port", "8188", 
+            "--base-directory", COMFYUI_PATH,
+            "--disable-auto-launch",
+            "--disable-metadata",
+            "--verbose", "INFO",
+            "--log-stdout"
+        ]
+        
+        logger.info("🚀 Starting ComfyUI (SageAttention handled by workflow nodes)")
+        logger.info(f"🔍 ComfyUI command: {' '.join(cmd)}")
+        logger.info(f"📁 Working directory: {os.getcwd()}")
+        logger.info(f"🐍 Python executable: {python_executable}")
+        
+        # Start ComfyUI in background
+        comfyui_process = subprocess.Popen(
+            cmd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+        
+        # Wait for ComfyUI to start and log output
+        logger.info("⏳ Waiting for ComfyUI to start...")
+        for attempt in range(120):  # 2 minute timeout for model loading
             try:
                 response = requests.get(f"http://{COMFYUI_SERVER}/", timeout=2)
                 if response.status_code == 200:
-                    logger.info("✅ ComfyUI already running and ready!")
+                    logger.info("✅ ComfyUI started successfully with network storage!")
                     comfyui_initialized = True
                     return True
             except requests.RequestException:
                 pass
             
-            if attempt % 10 == 0:  # Log every 10 seconds
-                logger.info(f"⏳ Waiting for ComfyUI to be ready... ({attempt}/60)")
+            # Check if process crashed and log output
+            if comfyui_process.poll() is not None:
+                stdout, stderr = comfyui_process.communicate()
+                logger.error(f"❌ ComfyUI process crashed:")
+                logger.error(f"Exit code: {comfyui_process.returncode}")
+                logger.error(f"Output: {stdout}")
+                return False
+            
+            # Log some ComfyUI output for debugging
+            if attempt % 10 == 0:  # Every 10 seconds
+                try:
+                    line = comfyui_process.stdout.readline()
+                    if line:
+                        logger.info(f"ComfyUI: {line.strip()}")
+                        if "sage" in line.lower() or "gpu" in line.lower():
+                            logger.info(f"🎮 GPU/SageAttention INFO: {line.strip()}")
+                except:
+                    pass
             
             time.sleep(1)
         
-        logger.error("❌ ComfyUI not ready within timeout")
+        logger.error("❌ ComfyUI failed to start within timeout")
         return False
         
     except Exception as e:
-        logger.error(f"❌ Error checking ComfyUI: {str(e)}")
+        logger.error(f"❌ Error starting ComfyUI: {str(e)}")
         return False
 
 def load_workflow():
