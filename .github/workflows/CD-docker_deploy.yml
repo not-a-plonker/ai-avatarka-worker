@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: cunt
+    runs-on: ubuntu-latest
     timeout-minutes: 240  # 4 hour timeout for clean build with SageAttention compilation + 35GB models
     
     steps:

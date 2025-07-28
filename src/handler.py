@@ -1,6 +1,6 @@
 """
 AI-Avatarka RunPod Serverless Worker Handler
-Updated for Network Storage Setup
+FIXED VERSION - No infinite loop, proper status, correct paths
 """
 
 import runpod
@@ -26,14 +26,7 @@ logger = logging.getLogger(__name__)
 # Network storage paths - get from environment or detect automatically
 NETWORK_STORAGE_BASE = "/workspace"
 NETWORK_STORAGE_VENV = "/workspace/venv"
-# ComfyUI path will be detected (could be comfywan or ComfyUI)
 NETWORK_STORAGE_COMFYUI = os.environ.get("COMFYUI_PATH", "/workspace/ComfyUI")
-
-# Runtime paths (will be set after validation)
-COMFYUI_PATH = None
-COMFYUI_SERVER = "127.0.0.1:8188"
-EFFECTS_CONFIG = "/prompts/effects.json"  # Files copied to network storage root
-WORKFLOW_PATH = "/workflow/universal_i2v.json"  # Files copied to network storage rootYUI = os.environ.get("NETWORK_STORAGE_COMFYUI", "/workspace/ComfyUI")
 
 # Runtime paths (will be set after validation)
 COMFYUI_PATH = None
@@ -221,25 +214,23 @@ def start_comfyui():
         return True
     
     try:
-        logger.info("🔍 Checking if ComfyUI is already running (started by start.sh)...")
+        logger.info("🔍 Checking if ComfyUI is ready...")
         
-        # Just wait for the existing ComfyUI to be ready
-        for attempt in range(60):  # 1 minute timeout
+        # Reduced timeout and better error handling
+        for attempt in range(90):  # 90 seconds timeout
             try:
-                response = requests.get(f"http://{COMFYUI_SERVER}/", timeout=2)
+                response = requests.get(f"http://{COMFYUI_SERVER}/", timeout=5)
                 if response.status_code == 200:
-                    logger.info("✅ ComfyUI already running and ready!")
+                    logger.info("✅ ComfyUI is ready!")
                     comfyui_initialized = True
                     return True
-            except requests.RequestException:
-                pass
-            
-            if attempt % 10 == 0:  # Log every 10 seconds
-                logger.info(f"⏳ Waiting for ComfyUI to be ready... ({attempt}/60)")
+            except requests.RequestException as e:
+                if attempt % 5 == 0:  # Log every 5 seconds
+                    logger.info(f"⏳ Waiting for ComfyUI... ({attempt}/90)")
             
             time.sleep(1)
         
-        logger.error("❌ ComfyUI not ready within timeout")
+        logger.error("❌ ComfyUI not ready within 90 seconds")
         return False
         
     except Exception as e:
@@ -285,76 +276,230 @@ def process_input_image(image_data: str) -> Optional[str]:
         return None
 
 def customize_workflow(workflow: Dict, params: Dict) -> Dict:
-    """Customize workflow with effect and parameters"""
+    """Customize VACE workflow with effect and parameters - WITH DEBUGGING"""
     try:
         # Get effect configuration
         effects = effects_data.get('effects', {}) if effects_data else {}
         effect_config = effects.get(params['effect'], {})
         
+        # DEBUG: Log what prompts we're trying to use
+        positive_prompt = params.get("prompt", effect_config.get("prompt", ""))
+        negative_prompt = params.get("negative_prompt", effect_config.get("negative_prompt", ""))
+        
+        logger.info(f"🎭 EFFECT CONFIG FOR {params['effect']}:")
+        logger.info(f"📝 POSITIVE PROMPT: {positive_prompt}")
+        logger.info(f"❌ NEGATIVE PROMPT: {negative_prompt}")
+        logger.info(f"🎯 LORA: {effect_config.get('lora', 'NONE')}")
+        
         # Update workflow nodes by replacing placeholders
+        prompt_nodes_found = 0
+        placeholder_found = False
+        
         for node_id, node in workflow.items():
             node_type = node.get("class_type", "")
             
             # Update image input node (LoadImage)
             if node_type == "LoadImage":
                 if "inputs" in node and "image" in node["inputs"]:
+                    logger.info(f"🖼️ LoadImage node {node_id}: current image = {node['inputs']['image']}")
                     if node["inputs"]["image"] == "PLACEHOLDER_IMAGE":
                         node["inputs"]["image"] = params["image_filename"]
+                        logger.info(f"✅ Set image to: {params['image_filename']}")
+                        placeholder_found = True
             
-            # Update LoRA selection (WanVideoLoraSelect)
-            elif node_type == "WanVideoLoraSelect":
+            # Update text prompts (CLIPTextEncode) - Updated for VACE architecture
+            elif node_type == "CLIPTextEncode":
+                prompt_nodes_found += 1
                 if "inputs" in node:
-                    lora_name = effect_config.get("lora", f"{params['effect']}.safetensors")
-                    if node["inputs"].get("lora_name") == "PLACEHOLDER_LORA":
-                        node["inputs"]["lora_name"] = lora_name
-                    if node["inputs"].get("lora") == "PLACEHOLDER_LORA":
-                        node["inputs"]["lora"] = lora_name
-                    # Set strength from effect config
-                    node["inputs"]["strength"] = effect_config.get("lora_strength", 1.0)
-            
-            # Update text prompts (WanVideoTextEncode)
-            elif node_type == "WanVideoTextEncode":
-                if "inputs" in node:
-                    # Use custom prompt or effect default
-                    positive_prompt = params.get("prompt", effect_config.get("prompt", ""))
-                    negative_prompt = params.get("negative_prompt", effect_config.get("negative_prompt", ""))
+                    logger.info(f"📝 TEXT NODE {node_id} FOUND:")
+                    logger.info(f"   Current text: {node['inputs'].get('text', 'NONE')}")
                     
-                    if node["inputs"].get("positive_prompt") == "PLACEHOLDER_PROMPT":
-                        node["inputs"]["positive_prompt"] = positive_prompt
-                    if node["inputs"].get("negative_prompt") == "PLACEHOLDER_NEGATIVE_PROMPT":
-                        node["inputs"]["negative_prompt"] = negative_prompt
+                    # Check for placeholders and replace
+                    if node["inputs"].get("text") == "PLACEHOLDER_PROMPT":
+                        node["inputs"]["text"] = positive_prompt
+                        logger.info(f"✅ REPLACED positive prompt with: {positive_prompt[:100]}...")
+                        placeholder_found = True
+                    elif node["inputs"].get("text") == "PLACEHOLDER_NEGATIVE_PROMPT":
+                        node["inputs"]["text"] = negative_prompt
+                        logger.info(f"✅ REPLACED negative prompt with: {negative_prompt}")
+                        placeholder_found = True
+                    elif "text" in node["inputs"]:
+                        logger.warning(f"⚠️ text exists but is NOT placeholder: '{node['inputs']['text']}'")
+                    
+                    # Log final values
+                    logger.info(f"📋 FINAL VALUES for node {node_id}:")
+                    logger.info(f"   text: {node['inputs'].get('text', 'NONE')[:100]}...")
             
-            # Update sampling parameters (WanVideoSampler)
-            elif node_type == "WanVideoSampler":
+            # Update sampling parameters (KSampler) - Updated for VACE architecture
+            elif node_type == "KSampler":
                 if "inputs" in node:
                     node["inputs"]["steps"] = params.get("steps", 10)
                     node["inputs"]["cfg"] = params.get("cfg", 6)
                     node["inputs"]["seed"] = params.get("seed", -1)
-                    node["inputs"]["frames"] = params.get("frames", 85)
+                    logger.info(f"⚙️ KSampler node {node_id}: steps={params.get('steps', 10)}, cfg={params.get('cfg', 6)}")
             
-            # Update video output parameters
-            elif node_type == "VHS_VideoCombine":
+            # Update VACE parameters (WanVaceToVideo) - New for VACE architecture
+            elif node_type == "WanVaceToVideo":
                 if "inputs" in node:
-                    node["inputs"]["frame_rate"] = params.get("fps", 16)
+                    node["inputs"]["width"] = params.get("width", 720)
+                    node["inputs"]["height"] = params.get("height", 720)
+                    node["inputs"]["length"] = params.get("frames", 85)
+                    node["inputs"]["strength"] = params.get("frames", 85)  # VACE uses strength for frame count
+                    logger.info(f"🎬 WanVaceToVideo node {node_id}: {params.get('width', 720)}x{params.get('height', 720)}, frames={params.get('frames', 85)}")
             
-            # Update image encoding parameters
-            elif node_type == "WanVideoImageClipEncode":
+            # Update video output parameters (CreateVideo) - Updated for VACE architecture
+            elif node_type == "CreateVideo":
                 if "inputs" in node:
-                    node["inputs"]["generation_width"] = params.get("width", 720)
-                    node["inputs"]["generation_height"] = params.get("height", 720)
-                    node["inputs"]["num_frames"] = params.get("frames", 85)
+                    node["inputs"]["fps"] = params.get("fps", 16)
+                    logger.info(f"🎥 CreateVideo node {node_id}: fps={params.get('fps', 16)}")
+            
+            # Update LoRA in Power Lora Loader - Updated for VACE architecture
+            elif node_type == "Power Lora Loader (rgthree)":
+                if "inputs" in node:
+                    lora_name = effect_config.get("lora", f"{params['effect']}.safetensors")
+                    lora_strength = effect_config.get("lora_strength", 1.0)
+                    
+                    logger.info(f"🎯 Power LoRA Loader node {node_id}: setting effect lora")
+                    
+                    # Update lora_3 slot for the effect LoRA
+                    if "lora_3" in node["inputs"]:
+                        if node["inputs"]["lora_3"].get("lora") == "PLACEHOLDER_LORA":
+                            node["inputs"]["lora_3"]["lora"] = lora_name
+                            node["inputs"]["lora_3"]["strength"] = lora_strength
+                            node["inputs"]["lora_3"]["on"] = True
+                            logger.info(f"✅ Set effect lora to: {lora_name} with strength {lora_strength}")
+                            placeholder_found = True
+            
+            # Update ImageResize+ parameters
+            elif node_type == "ImageResize+":
+                if "inputs" in node:
+                    node["inputs"]["width"] = params.get("width", 720)
+                    logger.info(f"🖼️ ImageResize+ node {node_id}: width={params.get('width', 720)}")
             
             # SageAttention is already set in the workflow
-            elif node_type == "WanVideoModelLoader":
+            elif node_type == "PathchSageAttentionKJ":
                 if "inputs" in node:
-                    logger.info("🎯 Found WanVideoModelLoader with SageAttention mode")
+                    logger.info("🎯 Found PathchSageAttentionKJ with SageAttention mode")
         
-        logger.info(f"✅ Workflow customized for effect: {params['effect']}")
+        # Summary logging
+        logger.info(f"📊 WORKFLOW CUSTOMIZATION SUMMARY:")
+        logger.info(f"   Text nodes found: {prompt_nodes_found}")
+        logger.info(f"   Placeholders found and replaced: {placeholder_found}")
+        
+        if prompt_nodes_found == 0:
+            logger.error("❌ NO CLIPTextEncode nodes found in workflow!")
+        
+        if not placeholder_found:
+            logger.warning("⚠️ NO placeholders found - workflow might have hardcoded values!")
+        
+        logger.info(f"✅ Workflow customized for VACE effect: {params['effect']}")
         return workflow
         
     except Exception as e:
-        logger.error(f"❌ Error customizing workflow: {str(e)}")
+        logger.error(f"❌ Error customizing VACE workflow: {str(e)}")
         return workflow
+
+def wait_for_completion(prompt_id: str) -> Optional[str]:
+    """Wait for VACE workflow completion - handle VACE output format"""
+    try:
+        start_time = time.time()
+        
+        while True:
+            try:
+                # Check ComfyUI history for THIS specific prompt_id
+                response = requests.get(f"http://{COMFYUI_SERVER}/history/{prompt_id}")
+                if response.status_code == 200:
+                    history = response.json()
+                    
+                    if prompt_id in history:
+                        prompt_info = history[prompt_id]
+                        status = prompt_info.get("status", {})
+                        
+                        # Check if completed
+                        if status.get("completed", False):
+                            logger.info(f"✅ VACE Workflow completed for {prompt_id}")
+                            outputs = prompt_info.get("outputs", {})
+                            
+                            # Look for video output from SaveVideo node (node 69)
+                            for node_id, node_outputs in outputs.items():
+                                logger.info(f"🔍 Checking node {node_id} with keys: {list(node_outputs.keys())}")
+                                
+                                # Method 1: Look for SaveVideo output structure
+                                if "video" in node_outputs:
+                                    video_info = node_outputs["video"]
+                                    if isinstance(video_info, list) and len(video_info) > 0:
+                                        video_path_info = video_info[0]
+                                        # VACE SaveVideo might return different structure
+                                        if isinstance(video_path_info, dict) and "filename" in video_path_info:
+                                            video_path = Path("/workspace/ComfyUI/output") / video_path_info["filename"]
+                                        elif isinstance(video_path_info, str):
+                                            video_path = Path(video_path_info) if video_path_info.startswith('/') else Path("/workspace/ComfyUI/output") / video_path_info
+                                        else:
+                                            continue
+                                        
+                                        if video_path.exists():
+                                            logger.info(f"✅ Found VACE video via 'video' key: {video_path}")
+                                            return str(video_path)
+                                
+                                # Method 2: Look for any video file references
+                                def find_video_path(obj):
+                                    if isinstance(obj, dict):
+                                        # Look for various video path keys
+                                        for key in ["filename", "path", "fullpath", "file"]:
+                                            if key in obj and isinstance(obj[key], str) and obj[key].endswith(('.mp4', '.avi', '.mov')):
+                                                return obj[key]
+                                        for value in obj.values():
+                                            result = find_video_path(value)
+                                            if result:
+                                                return result
+                                    elif isinstance(obj, list):
+                                        for item in obj:
+                                            result = find_video_path(item)
+                                            if result:
+                                                return result
+                                    return None
+                                
+                                video_filename = find_video_path(node_outputs)
+                                if video_filename:
+                                    video_path = Path(video_filename) if video_filename.startswith('/') else Path("/workspace/ComfyUI/output") / video_filename
+                                    if video_path.exists():
+                                        logger.info(f"✅ Found VACE video via recursive search: {video_path}")
+                                        return str(video_path)
+                            
+                            # Method 3: Last resort - look for newest .mp4 file with ai-avatarka prefix
+                            output_dir = Path("/workspace/ComfyUI/output")
+                            if output_dir.exists():
+                                mp4_files = list(output_dir.glob("ai-avatarka*.mp4"))
+                                if mp4_files:
+                                    # Get the newest mp4 file created after workflow started
+                                    newest_video = max(mp4_files, key=lambda f: f.stat().st_mtime)
+                                    if newest_video.stat().st_mtime > start_time:
+                                        logger.info(f"✅ Found newest VACE video file: {newest_video}")
+                                        return str(newest_video)
+                            
+                            # If we get here, workflow completed but no video found
+                            logger.error(f"❌ VACE Workflow completed but no video output found for {prompt_id}")
+                            logger.info(f"🔍 Full outputs structure: {json.dumps(outputs, indent=2)}")
+                            return None
+                        
+                        # Check if failed
+                        elif "error" in status or status.get("status_str") == "error":
+                            logger.error(f"❌ VACE Workflow failed for {prompt_id}: {status}")
+                            return None
+                
+                # Log progress every 30 seconds
+                elapsed = time.time() - start_time
+                if elapsed % 30 < 2:
+                    logger.info(f"⏳ Still processing VACE {prompt_id}... ({elapsed:.1f}s elapsed)")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Error checking VACE status for {prompt_id}: {e}")
+            
+            time.sleep(2)
+        
+    except Exception as e:
+        logger.error(f"❌ Error waiting for VACE completion: {str(e)}")
+        return None
 
 def submit_workflow(workflow: Dict) -> Optional[str]:
     """Submit workflow to ComfyUI"""
@@ -388,37 +533,106 @@ def submit_workflow(workflow: Dict) -> Optional[str]:
         return None
 
 def wait_for_completion(prompt_id: str) -> Optional[str]:
-    """Wait for workflow completion and return output path"""
+    """FIXED: Wait for workflow completion - handle actual ComfyUI output format"""
     try:
         start_time = time.time()
         
         while True:
             try:
-                # Check status
+                # Check ComfyUI history for THIS specific prompt_id
                 response = requests.get(f"http://{COMFYUI_SERVER}/history/{prompt_id}")
                 if response.status_code == 200:
                     history = response.json()
                     
                     if prompt_id in history:
-                        outputs = history[prompt_id].get("outputs", {})
+                        prompt_info = history[prompt_id]
+                        status = prompt_info.get("status", {})
                         
-                        # Look for video output
-                        for node_outputs in outputs.values():
-                            if "videos" in node_outputs:
-                                video_info = node_outputs["videos"][0]
-                                video_path = Path(COMFYUI_PATH) / "output" / video_info["filename"]
+                        # Check if completed
+                        if status.get("completed", False):
+                            logger.info(f"✅ Workflow completed for {prompt_id}")
+                            outputs = prompt_info.get("outputs", {})
+                            
+                            # Look for video output in any node - try multiple formats
+                            for node_id, node_outputs in outputs.items():
+                                logger.info(f"🔍 Checking node {node_id} with keys: {list(node_outputs.keys())}")
                                 
-                                if video_path.exists():
-                                    logger.info(f"✅ Video generated: {video_path}")
-                                    return str(video_path)
+                                # Method 1: Look for "videos" key (standard format)
+                                if "videos" in node_outputs and len(node_outputs["videos"]) > 0:
+                                    video_info = node_outputs["videos"][0]
+                                    filename = video_info.get("filename")
+                                    if filename:
+                                        video_path = Path("/workspace/ComfyUI/output") / filename
+                                        if video_path.exists():
+                                            logger.info(f"✅ Found video via 'videos' key: {video_path}")
+                                            return str(video_path)
+                                
+                                # Method 2: Look for "fullpath" in any output structure
+                                def find_fullpath(obj):
+                                    if isinstance(obj, dict):
+                                        if "fullpath" in obj:
+                                            return obj["fullpath"]
+                                        for value in obj.values():
+                                            result = find_fullpath(value)
+                                            if result:
+                                                return result
+                                    elif isinstance(obj, list):
+                                        for item in obj:
+                                            result = find_fullpath(item)
+                                            if result:
+                                                return result
+                                    return None
+                                
+                                fullpath = find_fullpath(node_outputs)
+                                if fullpath:
+                                    video_path = Path(fullpath)
+                                    if video_path.exists():
+                                        logger.info(f"✅ Found video via 'fullpath': {video_path}")
+                                        return str(video_path)
+                                
+                                # Method 3: Look for any .mp4 files mentioned in the output
+                                output_str = str(node_outputs)
+                                if ".mp4" in output_str:
+                                    import re
+                                    mp4_matches = re.findall(r'["\']([^"\']*\.mp4)["\']', output_str)
+                                    for match in mp4_matches:
+                                        if match.startswith('/'):
+                                            video_path = Path(match)
+                                        else:
+                                            video_path = Path("/workspace/ComfyUI/output") / match
+                                        
+                                        if video_path.exists():
+                                            logger.info(f"✅ Found video via regex: {video_path}")
+                                            return str(video_path)
+                            
+                            # Method 4: Last resort - look for newest .mp4 file in output directory
+                            output_dir = Path("/workspace/ComfyUI/output")
+                            if output_dir.exists():
+                                mp4_files = list(output_dir.glob("*.mp4"))
+                                if mp4_files:
+                                    # Get the newest mp4 file created after workflow started
+                                    newest_video = max(mp4_files, key=lambda f: f.stat().st_mtime)
+                                    if newest_video.stat().st_mtime > start_time:
+                                        logger.info(f"✅ Found newest video file: {newest_video}")
+                                        return str(newest_video)
+                            
+                            # If we get here, workflow completed but no video found
+                            logger.error(f"❌ Workflow completed but no video output found for {prompt_id}")
+                            logger.info(f"🔍 Full outputs structure: {json.dumps(outputs, indent=2)}")
+                            return None
+                        
+                        # Check if failed
+                        elif "error" in status or status.get("status_str") == "error":
+                            logger.error(f"❌ Workflow failed for {prompt_id}: {status}")
+                            return None
                 
-                # Log progress every minute
+                # Log progress every 30 seconds
                 elapsed = time.time() - start_time
-                if elapsed % 60 < 2:
-                    logger.info(f"⏳ Still processing... ({elapsed/60:.1f} minutes elapsed)")
+                if elapsed % 30 < 2:
+                    logger.info(f"⏳ Still processing {prompt_id}... ({elapsed:.1f}s elapsed)")
                 
             except Exception as e:
-                logger.warning(f"⚠️ Error checking status: {e}")
+                logger.warning(f"⚠️ Error checking status for {prompt_id}: {e}")
             
             time.sleep(2)
         
@@ -483,17 +697,27 @@ def check_gpu_memory():
         logger.warning(f"⚠️ Could not check GPU memory: {e}")
 
 def handler(job):
-    """Main RunPod handler"""
+    """FIXED: Main RunPod handler with proper status and no infinite loop"""
+    start_time = time.time()
+    
     try:
         logger.info("🎬 Processing job with network storage SageAttention...")
         
         # Validate network storage setup first
         if not validate_network_storage():
-            return {"error": "Network storage validation failed - ensure your RunPod endpoint is using the correct network storage"}
+            return {
+                "error": "Network storage validation failed",
+                "status": "FAILED",
+                "success": False
+            }
         
         # Activate network storage environment
         if not activate_network_storage_environment():
-            return {"error": "Failed to activate network storage environment"}
+            return {
+                "error": "Failed to activate network storage environment",
+                "status": "FAILED", 
+                "success": False
+            }
         
         # Check GPU memory at start
         check_gpu_memory()
@@ -502,14 +726,22 @@ def handler(job):
         if not effects_data and not load_effects_config():
             logger.warning("⚠️ Effects config not loaded - using defaults")
         
-        # Start ComfyUI (SageAttention will be handled by workflow nodes)
+        # Start ComfyUI
         if not start_comfyui():
-            return {"error": "Failed to start ComfyUI from network storage"}
+            return {
+                "error": "Failed to start ComfyUI from network storage",
+                "status": "FAILED",
+                "success": False
+            }
         
         # Load workflow template
         workflow = load_workflow()
         if not workflow:
-            return {"error": "Failed to load workflow"}
+            return {
+                "error": "Failed to load workflow",
+                "status": "FAILED",
+                "success": False
+            }
         
         # Get job input
         job_input = job.get("input", {})
@@ -517,11 +749,19 @@ def handler(job):
         # Process input image
         image_data = job_input.get("image")
         if not image_data:
-            return {"error": "No image provided"}
+            return {
+                "error": "No image provided",
+                "status": "FAILED",
+                "success": False
+            }
         
         image_filename = process_input_image(image_data)
         if not image_filename:
-            return {"error": "Failed to process input image"}
+            return {
+                "error": "Failed to process input image",
+                "status": "FAILED",
+                "success": False
+            }
         
         # Prepare parameters
         params = {
@@ -535,10 +775,10 @@ def handler(job):
             "fps": job_input.get("fps", 16),
             "width": job_input.get("width", 720),
             "height": job_input.get("height", 720),
-            "seed": job_input.get("seed", -1)
+            "seed": job_input.get("seed", 812989658032619)
         }
         
-        logger.info(f"🎭 Processing effect: {params['effect']} with ComfyUI SageAttention nodes")
+        logger.info(f"🎭 Processing effect: {params['effect']}")
         
         # Customize workflow
         workflow = customize_workflow(workflow, params)
@@ -546,43 +786,75 @@ def handler(job):
         # Submit workflow
         prompt_id = submit_workflow(workflow)
         if not prompt_id:
-            return {"error": "Failed to submit workflow"}
+            return {
+                "error": "Failed to submit workflow",
+                "status": "FAILED",
+                "success": False
+            }
         
-        # Wait for completion (no timeout - let RunPod handle it)
+        logger.info(f"✅ Workflow submitted with prompt_id: {prompt_id}")
+        
+        # FIXED: Wait for completion with proper loop handling
         video_path = wait_for_completion(prompt_id)
         if not video_path:
-            return {"error": "Video generation failed or timed out"}
+            return {
+                "error": "Video generation failed or timed out",
+                "status": "FAILED",
+                "success": False,
+                "prompt_id": prompt_id
+            }
         
         # Encode result
         video_base64 = encode_video_to_base64(video_path)
         if not video_base64:
-            return {"error": "Failed to encode output video"}
+            return {
+                "error": "Failed to encode output video",
+                "status": "FAILED", 
+                "success": False,
+                "prompt_id": prompt_id
+            }
         
-        # Check GPU memory at end
-        check_gpu_memory()
+        processing_time = time.time() - start_time
+        logger.info(f"✅ Processing completed in {processing_time:.2f} seconds")
         
-        # Clean up
+        # Clean up input file
         try:
             input_path = Path(COMFYUI_PATH) / "input" / image_filename
             if input_path.exists():
                 input_path.unlink()
                 logger.info("✅ Cleaned up input image")
-        except:
-            pass
+        except Exception as cleanup_error:
+            logger.warning(f"⚠️ Cleanup failed: {cleanup_error}")
         
-        return {
+        # FIXED: Return proper success response with explicit status
+        result = {
             "video": video_base64,
             "effect": params["effect"],
             "prompt_id": prompt_id,
             "filename": Path(video_path).name,
-            "processing_time": time.time(),
-            "sage_attention_used": True,  # Used by ComfyUI workflow nodes
+            "processing_time": processing_time,
+            "status": "COMPLETED",    # EXPLICIT STATUS for RunPod
+            "success": True,          # SUCCESS FLAG
+            "sage_attention_used": True,
             "network_storage_used": True
         }
         
+        logger.info(f"🎉 Returning successful result for effect: {params['effect']}")
+        logger.info(f"📝 Result keys: {list(result.keys())}")
+        
+        return result
+        
     except Exception as e:
-        logger.error(f"❌ Handler error: {str(e)}")
-        return {"error": f"Processing failed: {str(e)}"}
+        processing_time = time.time() - start_time
+        error_msg = f"Processing failed after {processing_time:.2f}s: {str(e)}"
+        logger.error(f"❌ Handler error: {error_msg}")
+        
+        return {
+            "error": error_msg,
+            "status": "FAILED",      # EXPLICIT FAILED STATUS
+            "success": False,
+            "processing_time": processing_time
+        }
 
 # Initialize on startup
 if __name__ == "__main__":

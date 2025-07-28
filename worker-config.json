@@ -75,7 +75,7 @@
     "seed": {
       "type": "integer",
       "description": "Random seed (-1 for random)",
-      "default": -1
+      "default": 812989658032619
     }
   },
 

@@ -33,6 +33,10 @@ COPY workflow/ /tmp/workflow/
 COPY prompts/ /tmp/prompts/
 COPY src/handler.py /rp_handler.py
 
+# Copy the comfy-manager-set-mode script
+COPY comfy-manager-set-mode.sh /usr/local/bin/comfy-manager-set-mode
+RUN chmod +x /usr/local/bin/comfy-manager-set-mode
+
 # Copy and make start script executable
 COPY start.sh /start.sh
 RUN chmod +x /start.sh

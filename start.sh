@@ -26,6 +26,10 @@ if [ -d "/runpod-volume" ]; then
   export PYTHONUNBUFFERED=true
   export HF_HOME="/workspace"
   
+  # Set ComfyUI-Manager to offline mode to prevent registry fetching
+  export COMFYUI_MANAGER_OFFLINE=1
+  export DISABLE_COMFYUI_MANAGER_NETWORK=1
+  
   # Check ComfyUI structure (you renamed comfywan to ComfyUI)
   if [ -d "/workspace/ComfyUI" ]; then
     COMFYUI_DIR="/workspace/ComfyUI"
@@ -40,14 +44,14 @@ if [ -d "/runpod-volume" ]; then
   
   cd $COMFYUI_DIR
   
-  # ComfyUI-Manager offline mode (command not available, skipping)
-  echo "ℹ️ Skipping ComfyUI-Manager offline mode (not required)"
+  # Set ComfyUI-Manager to offline mode (following runpod-wan pattern)
+  comfy-manager-set-mode offline || echo "⚠️ Could not set ComfyUI-Manager network_mode (script not found)" >&2
   
-  echo "🚀 Starting ComfyUI"
+  echo "🚀 Starting ComfyUI in offline mode (no registry fetching)"
   # Allow operators to tweak verbosity; default is INFO.
   : "${COMFY_LOG_LEVEL:=INFO}"
 
-  # Start ComfyUI in background (following runpod-wan pattern)
+  # Start ComfyUI in background (offline mode set above)
   python -u $COMFYUI_DIR/main.py --port 8188 --use-sage-attention --base-directory $COMFYUI_DIR --disable-auto-launch --disable-metadata --verbose "${COMFY_LOG_LEVEL}" --log-stdout &
   
   # Wait a moment for ComfyUI to start
@@ -56,7 +60,7 @@ if [ -d "/runpod-volume" ]; then
   echo "🎯 Starting RunPod Handler"
   # Export ComfyUI path for handler
   export COMFYUI_PATH=$COMFYUI_DIR
-  python -u /rp_handler.py
+  exec python -u /rp_handler.py
 else
   echo "❌ Warning: /runpod-volume does not exist"
   exit 1
