@@ -161,11 +161,11 @@
       },
       "lora_2": {
         "on": true,
-        "lora": "Wan2.1-Fun-14B-InP-MPS.safetensors",
-        "strength": 0.3
+        "lora": "PLACEHOLDER_LORA",
+        "strength": 1.0
       },
       "lora_3": {
-        "on": true,
+        "on": false,
         "lora": "PLACEHOLDER_LORA",
         "strength": 1.0
       },
