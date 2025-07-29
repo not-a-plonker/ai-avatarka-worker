@@ -341,11 +341,30 @@ def customize_workflow(workflow: Dict, params: Dict) -> Dict:
             # Update VACE parameters (WanVaceToVideo) - New for VACE architecture
             elif node_type == "WanVaceToVideo":
                 if "inputs" in node:
-                    node["inputs"]["width"] = params.get("width", 720)
-                    node["inputs"]["height"] = params.get("height", 720)
-                    node["inputs"]["length"] = params.get("frames", 85)
-                    node["inputs"]["strength"] = params.get("frames", 85)  # VACE uses strength for frame count
-                    logger.info(f"🎬 WanVaceToVideo node {node_id}: {params.get('width', 720)}x{params.get('height', 720)}, frames={params.get('frames', 85)}")
+                    # Ensure dimensions are divisible by 16 (VACE requirement)
+                    width = params.get("width", 720)
+                    height = params.get("height", 720)
+                    frames = params.get("frames", 85)
+                    
+                    # Round to nearest multiple of 16
+                    width = ((width + 8) // 16) * 16
+                    height = ((height + 8) // 16) * 16
+                    
+                    # Round frames to nearest multiple of 4 (if needed)
+                    if frames % 4 != 0:
+                        frames = ((frames + 2) // 4) * 4  # Round to nearest multiple of 4
+                    
+                    node["inputs"]["width"] = width
+                    node["inputs"]["height"] = height
+                    node["inputs"]["length"] = frames
+                    node["inputs"]["strength"] = frames  # VACE uses strength for frame count
+                    logger.info(f"🎬 WanVaceToVideo node {node_id}: {width}x{height}, frames={frames}")
+                    
+                    # Log if we had to adjust values
+                    if width != params.get("width", 720) or height != params.get("height", 720):
+                        logger.info(f"📐 Resolution adjusted to be divisible by 16: {width}x{height}")
+                    if frames != params.get("frames", 85):
+                        logger.info(f"🎬 Frame count adjusted to be divisible by 4: {params.get('frames', 85)} → {frames}")
             
             # Update video output parameters (CreateVideo) - Updated for VACE architecture
             elif node_type == "CreateVideo":

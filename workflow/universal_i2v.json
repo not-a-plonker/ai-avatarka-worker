@@ -70,9 +70,9 @@
     "inputs": {
       "width": 720,
       "height": 720,
-      "length": 85,
+      "length": 84,
       "batch_size": 1,
-      "strength": 85,
+      "strength": 84,
       "positive": ["6", 0],
       "negative": ["7", 0],
       "vae": ["39", 0],
@@ -106,7 +106,7 @@
   "69": {
     "inputs": {
       "filename_prefix": "ai-avatarka",
-      "format": "video/h264-mp4",
+      "format": "mp4",
       "codec": "auto",
       "video-preview": "",
       "video": ["68", 0]
