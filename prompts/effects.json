@@ -104,12 +104,12 @@
     }
   },
   "default_settings": {
-    "steps": 10,
+    "steps": 20,
     "cfg": 6,
     "frames": 85,
     "fps": 16,
-    "width": 720,
-    "height": 720,
+    "width": 480,
+    "height": 480,
     "seed": 812989658032619
   }
 }
