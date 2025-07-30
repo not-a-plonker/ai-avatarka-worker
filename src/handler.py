@@ -276,7 +276,7 @@ def process_input_image(image_data: str) -> Optional[str]:
         return None
 
 def customize_workflow(workflow: Dict, params: Dict) -> Dict:
-    """Customize VACE workflow with effect and parameters - WITH DEBUGGING"""
+    """Customize workflow with effect and parameters - WITH DEBUGGING"""
     try:
         # Get effect configuration
         effects = effects_data.get('effects', {}) if effects_data else {}
@@ -307,98 +307,78 @@ def customize_workflow(workflow: Dict, params: Dict) -> Dict:
                         logger.info(f"✅ Set image to: {params['image_filename']}")
                         placeholder_found = True
             
-            # Update text prompts (CLIPTextEncode) - Updated for VACE architecture
-            elif node_type == "CLIPTextEncode":
+            # Update LoRA selection (WanVideoLoraSelect)
+            elif node_type == "WanVideoLoraSelect":
+                if "inputs" in node:
+                    lora_name = effect_config.get("lora", f"{params['effect']}.safetensors")
+                    logger.info(f"🎯 LoRA node {node_id}: current lora = {node['inputs'].get('lora_name', 'NONE')}")
+                    
+                    if node["inputs"].get("lora_name") == "PLACEHOLDER_LORA":
+                        node["inputs"]["lora_name"] = lora_name
+                        logger.info(f"✅ Set lora_name to: {lora_name}")
+                        placeholder_found = True
+                    if node["inputs"].get("lora") == "PLACEHOLDER_LORA":
+                        node["inputs"]["lora"] = lora_name
+                        logger.info(f"✅ Set lora to: {lora_name}")
+                        placeholder_found = True
+                    
+                    # Set strength from effect config
+                    node["inputs"]["strength"] = effect_config.get("lora_strength", 1.0)
+                    logger.info(f"✅ Set lora strength to: {effect_config.get('lora_strength', 1.0)}")
+            
+            # Update text prompts (WanVideoTextEncode) - THIS IS THE IMPORTANT ONE
+            elif node_type == "WanVideoTextEncode":
                 prompt_nodes_found += 1
                 if "inputs" in node:
                     logger.info(f"📝 TEXT NODE {node_id} FOUND:")
-                    logger.info(f"   Current text: {node['inputs'].get('text', 'NONE')}")
+                    logger.info(f"   Current positive_prompt: {node['inputs'].get('positive_prompt', 'NONE')}")
+                    logger.info(f"   Current negative_prompt: {node['inputs'].get('negative_prompt', 'NONE')}")
                     
                     # Check for placeholders and replace
-                    if node["inputs"].get("text") == "PLACEHOLDER_PROMPT":
-                        node["inputs"]["text"] = positive_prompt
-                        logger.info(f"✅ REPLACED positive prompt with: {positive_prompt[:100]}...")
+                    if node["inputs"].get("positive_prompt") == "PLACEHOLDER_PROMPT":
+                        node["inputs"]["positive_prompt"] = positive_prompt
+                        logger.info(f"✅ REPLACED positive_prompt with: {positive_prompt[:100]}...")
                         placeholder_found = True
-                    elif node["inputs"].get("text") == "PLACEHOLDER_NEGATIVE_PROMPT":
-                        node["inputs"]["text"] = negative_prompt
-                        logger.info(f"✅ REPLACED negative prompt with: {negative_prompt}")
+                    elif "positive_prompt" in node["inputs"]:
+                        logger.warning(f"⚠️ positive_prompt exists but is NOT placeholder: '{node['inputs']['positive_prompt']}'")
+                    
+                    if node["inputs"].get("negative_prompt") == "PLACEHOLDER_NEGATIVE_PROMPT":
+                        node["inputs"]["negative_prompt"] = negative_prompt
+                        logger.info(f"✅ REPLACED negative_prompt with: {negative_prompt}")
                         placeholder_found = True
-                    elif "text" in node["inputs"]:
-                        logger.warning(f"⚠️ text exists but is NOT placeholder: '{node['inputs']['text']}'")
+                    elif "negative_prompt" in node["inputs"]:
+                        logger.warning(f"⚠️ negative_prompt exists but is NOT placeholder: '{node['inputs']['negative_prompt']}'")
                     
                     # Log final values
                     logger.info(f"📋 FINAL VALUES for node {node_id}:")
-                    logger.info(f"   text: {node['inputs'].get('text', 'NONE')[:100]}...")
+                    logger.info(f"   positive_prompt: {node['inputs'].get('positive_prompt', 'NONE')[:100]}...")
+                    logger.info(f"   negative_prompt: {node['inputs'].get('negative_prompt', 'NONE')}")
             
-            # Update sampling parameters (KSampler) - Updated for VACE architecture
-            elif node_type == "KSampler":
+            # Update sampling parameters (WanVideoSampler)
+            elif node_type == "WanVideoSampler":
                 if "inputs" in node:
-                    node["inputs"]["steps"] = params.get("steps", 10)
+                    node["inputs"]["steps"] = params.get("steps", 20)
                     node["inputs"]["cfg"] = params.get("cfg", 6)
-                    node["inputs"]["seed"] = params.get("seed", -1)
-                    logger.info(f"⚙️ KSampler node {node_id}: steps={params.get('steps', 10)}, cfg={params.get('cfg', 6)}")
+                    node["inputs"]["seed"] = params.get("seed", 812989658032619)
+                    node["inputs"]["frames"] = params.get("frames", 85)
+                    logger.info(f"⚙️ Sampler node {node_id}: steps={params.get('steps', 20)}, cfg={params.get('cfg', 6)}")
             
-            # Update VACE parameters (WanVaceToVideo) - New for VACE architecture
-            elif node_type == "WanVaceToVideo":
+            # Update video output parameters
+            elif node_type == "VHS_VideoCombine":
                 if "inputs" in node:
-                    # Ensure dimensions are divisible by 16 (VACE requirement)
-                    width = params.get("width", 720)
-                    height = params.get("height", 720)
-                    frames = params.get("frames", 85)
-                    
-                    # Round to nearest multiple of 16
-                    width = ((width + 8) // 16) * 16
-                    height = ((height + 8) // 16) * 16
-                    
-                    # Round frames to nearest multiple of 4 (if needed)
-                    if frames % 4 != 0:
-                        frames = ((frames + 2) // 4) * 4  # Round to nearest multiple of 4
-                    
-                    node["inputs"]["width"] = width
-                    node["inputs"]["height"] = height
-                    node["inputs"]["length"] = frames
-                    node["inputs"]["strength"] = frames  # VACE uses strength for frame count
-                    logger.info(f"🎬 WanVaceToVideo node {node_id}: {width}x{height}, frames={frames}")
-                    
-                    # Log if we had to adjust values
-                    if width != params.get("width", 720) or height != params.get("height", 720):
-                        logger.info(f"📐 Resolution adjusted to be divisible by 16: {width}x{height}")
-                    if frames != params.get("frames", 85):
-                        logger.info(f"🎬 Frame count adjusted to be divisible by 4: {params.get('frames', 85)} → {frames}")
+                    node["inputs"]["frame_rate"] = params.get("fps", 16)
             
-            # Update video output parameters (CreateVideo) - Updated for VACE architecture
-            elif node_type == "CreateVideo":
+            # Update image encoding parameters
+            elif node_type == "WanVideoImageClipEncode":
                 if "inputs" in node:
-                    node["inputs"]["fps"] = params.get("fps", 16)
-                    logger.info(f"🎥 CreateVideo node {node_id}: fps={params.get('fps', 16)}")
-            
-            # Update LoRA in Power Lora Loader - Updated for VACE architecture
-            elif node_type == "Power Lora Loader (rgthree)":
-                if "inputs" in node:
-                    lora_name = effect_config.get("lora", f"{params['effect']}.safetensors")
-                    lora_strength = effect_config.get("lora_strength", 1.0)
-                    
-                    logger.info(f"🎯 Power LoRA Loader node {node_id}: setting effect lora")
-                    
-                    # Update lora_3 slot for the effect LoRA
-                    if "lora_3" in node["inputs"]:
-                        if node["inputs"]["lora_3"].get("lora") == "PLACEHOLDER_LORA":
-                            node["inputs"]["lora_3"]["lora"] = lora_name
-                            node["inputs"]["lora_3"]["strength"] = lora_strength
-                            node["inputs"]["lora_3"]["on"] = True
-                            logger.info(f"✅ Set effect lora to: {lora_name} with strength {lora_strength}")
-                            placeholder_found = True
-            
-            # Update ImageResize+ parameters
-            elif node_type == "ImageResize+":
-                if "inputs" in node:
-                    node["inputs"]["width"] = params.get("width", 720)
-                    logger.info(f"🖼️ ImageResize+ node {node_id}: width={params.get('width', 720)}")
+                    node["inputs"]["generation_width"] = params.get("width", 480)
+                    node["inputs"]["generation_height"] = params.get("height", 480)
+                    node["inputs"]["num_frames"] = params.get("frames", 85)
             
             # SageAttention is already set in the workflow
-            elif node_type == "PathchSageAttentionKJ":
+            elif node_type == "WanVideoModelLoader":
                 if "inputs" in node:
-                    logger.info("🎯 Found PathchSageAttentionKJ with SageAttention mode")
+                    logger.info("🎯 Found WanVideoModelLoader with SageAttention mode")
         
         # Summary logging
         logger.info(f"📊 WORKFLOW CUSTOMIZATION SUMMARY:")
@@ -406,119 +386,17 @@ def customize_workflow(workflow: Dict, params: Dict) -> Dict:
         logger.info(f"   Placeholders found and replaced: {placeholder_found}")
         
         if prompt_nodes_found == 0:
-            logger.error("❌ NO CLIPTextEncode nodes found in workflow!")
+            logger.error("❌ NO WanVideoTextEncode nodes found in workflow!")
         
         if not placeholder_found:
             logger.warning("⚠️ NO placeholders found - workflow might have hardcoded values!")
         
-        logger.info(f"✅ Workflow customized for VACE effect: {params['effect']}")
+        logger.info(f"✅ Workflow customized for effect: {params['effect']}")
         return workflow
         
     except Exception as e:
-        logger.error(f"❌ Error customizing VACE workflow: {str(e)}")
+        logger.error(f"❌ Error customizing workflow: {str(e)}")
         return workflow
-
-def wait_for_completion(prompt_id: str) -> Optional[str]:
-    """Wait for VACE workflow completion - handle VACE output format"""
-    try:
-        start_time = time.time()
-        
-        while True:
-            try:
-                # Check ComfyUI history for THIS specific prompt_id
-                response = requests.get(f"http://{COMFYUI_SERVER}/history/{prompt_id}")
-                if response.status_code == 200:
-                    history = response.json()
-                    
-                    if prompt_id in history:
-                        prompt_info = history[prompt_id]
-                        status = prompt_info.get("status", {})
-                        
-                        # Check if completed
-                        if status.get("completed", False):
-                            logger.info(f"✅ VACE Workflow completed for {prompt_id}")
-                            outputs = prompt_info.get("outputs", {})
-                            
-                            # Look for video output from SaveVideo node (node 69)
-                            for node_id, node_outputs in outputs.items():
-                                logger.info(f"🔍 Checking node {node_id} with keys: {list(node_outputs.keys())}")
-                                
-                                # Method 1: Look for SaveVideo output structure
-                                if "video" in node_outputs:
-                                    video_info = node_outputs["video"]
-                                    if isinstance(video_info, list) and len(video_info) > 0:
-                                        video_path_info = video_info[0]
-                                        # VACE SaveVideo might return different structure
-                                        if isinstance(video_path_info, dict) and "filename" in video_path_info:
-                                            video_path = Path("/workspace/ComfyUI/output") / video_path_info["filename"]
-                                        elif isinstance(video_path_info, str):
-                                            video_path = Path(video_path_info) if video_path_info.startswith('/') else Path("/workspace/ComfyUI/output") / video_path_info
-                                        else:
-                                            continue
-                                        
-                                        if video_path.exists():
-                                            logger.info(f"✅ Found VACE video via 'video' key: {video_path}")
-                                            return str(video_path)
-                                
-                                # Method 2: Look for any video file references
-                                def find_video_path(obj):
-                                    if isinstance(obj, dict):
-                                        # Look for various video path keys
-                                        for key in ["filename", "path", "fullpath", "file"]:
-                                            if key in obj and isinstance(obj[key], str) and obj[key].endswith(('.mp4', '.avi', '.mov')):
-                                                return obj[key]
-                                        for value in obj.values():
-                                            result = find_video_path(value)
-                                            if result:
-                                                return result
-                                    elif isinstance(obj, list):
-                                        for item in obj:
-                                            result = find_video_path(item)
-                                            if result:
-                                                return result
-                                    return None
-                                
-                                video_filename = find_video_path(node_outputs)
-                                if video_filename:
-                                    video_path = Path(video_filename) if video_filename.startswith('/') else Path("/workspace/ComfyUI/output") / video_filename
-                                    if video_path.exists():
-                                        logger.info(f"✅ Found VACE video via recursive search: {video_path}")
-                                        return str(video_path)
-                            
-                            # Method 3: Last resort - look for newest .mp4 file with ai-avatarka prefix
-                            output_dir = Path("/workspace/ComfyUI/output")
-                            if output_dir.exists():
-                                mp4_files = list(output_dir.glob("ai-avatarka*.mp4"))
-                                if mp4_files:
-                                    # Get the newest mp4 file created after workflow started
-                                    newest_video = max(mp4_files, key=lambda f: f.stat().st_mtime)
-                                    if newest_video.stat().st_mtime > start_time:
-                                        logger.info(f"✅ Found newest VACE video file: {newest_video}")
-                                        return str(newest_video)
-                            
-                            # If we get here, workflow completed but no video found
-                            logger.error(f"❌ VACE Workflow completed but no video output found for {prompt_id}")
-                            logger.info(f"🔍 Full outputs structure: {json.dumps(outputs, indent=2)}")
-                            return None
-                        
-                        # Check if failed
-                        elif "error" in status or status.get("status_str") == "error":
-                            logger.error(f"❌ VACE Workflow failed for {prompt_id}: {status}")
-                            return None
-                
-                # Log progress every 30 seconds
-                elapsed = time.time() - start_time
-                if elapsed % 30 < 2:
-                    logger.info(f"⏳ Still processing VACE {prompt_id}... ({elapsed:.1f}s elapsed)")
-                
-            except Exception as e:
-                logger.warning(f"⚠️ Error checking VACE status for {prompt_id}: {e}")
-            
-            time.sleep(2)
-        
-    except Exception as e:
-        logger.error(f"❌ Error waiting for VACE completion: {str(e)}")
-        return None
 
 def submit_workflow(workflow: Dict) -> Optional[str]:
     """Submit workflow to ComfyUI"""
@@ -788,15 +666,17 @@ def handler(job):
             "effect": job_input.get("effect", "ghostrider"),
             "prompt": job_input.get("prompt"),
             "negative_prompt": job_input.get("negative_prompt"),
-            "steps": job_input.get("steps", 10),
+            "steps": job_input.get("steps", 20),
             "cfg": job_input.get("cfg", 6),
             "frames": job_input.get("frames", 85),
             "fps": job_input.get("fps", 16),
-            "width": job_input.get("width", 720),
-            "height": job_input.get("height", 720),
+            "width": job_input.get("width", 480),
+            "height": job_input.get("height", 480),
             "seed": job_input.get("seed", 812989658032619)
         }
         
+        logger.info(f"🔍 PARAMS RECEIVED: width={params.get('width')}, height={params.get('height')}, steps={params.get('steps')}")
+
         logger.info(f"🎭 Processing effect: {params['effect']}")
         
         # Customize workflow
