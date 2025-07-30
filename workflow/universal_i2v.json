@@ -1,133 +1,139 @@
 {
-  "3": {
+  "22": {
     "inputs": {
-      "seed": -1,
-      "steps": 10,
+      "model": "wan2.1_i2v_480p_14B_bf16.safetensors",
+      "base_precision": "bf16",
+      "quantization": "fp8_e4m3fn",
+      "load_device": "offload_device",
+      "attention_mode": "sageattn",
+      "lora": ["41", 0]
+    },
+    "class_type": "WanVideoModelLoader",
+    "_meta": {
+      "title": "WanVideoModelLoader"
+    }
+  },
+  "28": {
+    "inputs": {
+      "enable_vae_tiling": true,
+      "tile_sample_min_height": 272,
+      "tile_sample_min_width": 272,
+      "tile_overlap_factor_height": 144,
+      "tile_overlap_factor_width": 128,
+      "tile_x": 272,
+      "tile_y": 272,
+      "tile_stride_x": 144,
+      "tile_stride_y": 128,
+      "vae": ["21", 0],
+      "samples": ["27", 0]
+    },
+    "class_type": "WanVideoDecode",
+    "_meta": {
+      "title": "WanVideoDecode"
+    }
+  },
+  "17": {
+    "inputs": {
+      "generation_height": 480,
+      "generation_width": 480,
+      "num_frames": 85,
+      "strength": 85,
+      "use_tiling": true,
+      "noise_aug_strength": 0,
+      "guidance_scale": 1,
+      "guidance_scale_end": 1,
+      "clip_vision": ["13", 0],
+      "image": ["37", 0],
+      "vae": ["21", 0]
+    },
+    "class_type": "WanVideoImageClipEncode",
+    "_meta": {
+      "title": "WanVideoImageClipEncode"
+    }
+  },
+  "41": {
+    "inputs": {
+      "lora_name": "PLACEHOLDER_LORA",
+      "strength": 1.0,
+      "lora": "PLACEHOLDER_LORA"
+    },
+    "class_type": "WanVideoLoraSelect",
+    "_meta": {
+      "title": "WanVideoLoraSelect"
+    }
+  },
+  "11": {
+    "inputs": {
+      "model_name": "umt5-xxl-enc-bf16.safetensors",
+      "precision": "bf16",
+      "load_device": "offload_device",
+      "quantization": "disabled"
+    },
+    "class_type": "LoadWanVideoT5TextEncoder",
+    "_meta": {
+      "title": "LoadWanVideoT5TextEncoder"
+    }
+  },
+  "13": {
+    "inputs": {
+      "model_name": "open-clip-xlm-roberta-large-vit-huge-14_fp16.safetensors",
+      "precision": "fp16",
+      "load_device": "offload_device"
+    },
+    "class_type": "LoadWanVideoClipTextEncoder",
+    "_meta": {
+      "title": "LoadWanVideoClipTextEncoder"
+    }
+  },
+  "16": {
+    "inputs": {
+      "positive_prompt": "PLACEHOLDER_PROMPT",
+      "negative_prompt": "PLACEHOLDER_NEGATIVE_PROMPT",
+      "use_offload": true,
+      "t5": ["11", 0]
+    },
+    "class_type": "WanVideoTextEncode",
+    "_meta": {
+      "title": "WanVideoTextEncode"
+    }
+  },
+  "27": {
+    "inputs": {
+      "steps": 20,
       "cfg": 6,
-      "sampler_name": "lcm",
-      "scheduler": "simple",
-      "denoise": 1,
-      "model": ["48", 0],
-      "positive": ["6", 0],
-      "negative": ["7", 0],
-      "latent_image": ["49", 2]
-    },
-    "class_type": "KSampler",
-    "_meta": {
-      "title": "KSampler"
-    }
-  },
-  "6": {
-    "inputs": {
-      "text": "PLACEHOLDER_PROMPT",
-      "clip": ["106", 1]
-    },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Positive Prompt)"
-    }
-  },
-  "7": {
-    "inputs": {
-      "text": "PLACEHOLDER_NEGATIVE_PROMPT",
-      "clip": ["106", 1]
-    },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Negative Prompt)"
-    }
-  },
-  "8": {
-    "inputs": {
-      "samples": ["58", 0],
-      "vae": ["39", 0]
-    },
-    "class_type": "VAEDecode",
-    "_meta": {
-      "title": "VAE Decode"
-    }
-  },
-  "39": {
-    "inputs": {
-      "vae_name": "wan_2.1_vae.safetensors"
-    },
-    "class_type": "VAELoader",
-    "_meta": {
-      "title": "Load VAE"
-    }
-  },
-  "48": {
-    "inputs": {
       "shift": 5.0,
-      "model": ["106", 0]
+      "riflex_freq_index": 0,
+      "force_offload": true,
+      "frames": 85,
+      "seed": 812989658032619,
+      "control_after_generate": "fixed",
+      "denoise": true,
+      "scheduler": "dpm++",
+      "guidance_start": 0,
+      "guidance_end": 1,
+      "model": ["22", 0],
+      "text_embeds": ["16", 0],
+      "image_embeds": ["17", 0]
     },
-    "class_type": "ModelSamplingSD3",
+    "class_type": "WanVideoSampler",
     "_meta": {
-      "title": "ModelSamplingSD3"
+      "title": "WanVideoSampler"
     }
   },
-  "49": {
+  "21": {
     "inputs": {
-      "width": 720,
-      "height": 720,
-      "length": 84,
-      "batch_size": 1,
-      "strength": 84,
-      "positive": ["6", 0],
-      "negative": ["7", 0],
-      "vae": ["39", 0],
-      "reference_image": ["37", 0]
+      "model_name": "wan_2.1_vae.safetensors",
+      "dtype": "bf16",
+      "precision": "bf16"
     },
-    "class_type": "WanVaceToVideo",
+    "class_type": "WanVideoVAELoader",
     "_meta": {
-      "title": "WanVaceToVideo"
-    }
-  },
-  "58": {
-    "inputs": {
-      "trim_amount": ["49", 3],
-      "samples": ["3", 0]
-    },
-    "class_type": "TrimVideoLatent",
-    "_meta": {
-      "title": "TrimVideoLatent"
-    }
-  },
-  "68": {
-    "inputs": {
-      "fps": 16,
-      "images": ["8", 0]
-    },
-    "class_type": "CreateVideo",
-    "_meta": {
-      "title": "Create Video"
-    }
-  },
-  "69": {
-    "inputs": {
-      "filename_prefix": "ai-avatarka",
-      "format": "mp4",
-      "codec": "auto",
-      "video-preview": "",
-      "video": ["68", 0]
-    },
-    "class_type": "SaveVideo",
-    "_meta": {
-      "title": "Save Video"
-    }
-  },
-  "18": {
-    "inputs": {
-      "image": "PLACEHOLDER_IMAGE"
-    },
-    "class_type": "LoadImage",
-    "_meta": {
-      "title": "LoadImage"
+      "title": "WanVideoVAELoader"
     }
   },
   "37": {
     "inputs": {
-      "width": 720,
+      "width": 480,
       "height": 0,
       "interpolation": "lanczos",
       "method": "keep proportion",
@@ -140,102 +146,32 @@
       "title": "ImageResize+"
     }
   },
-  "105": {
+  "18": {
     "inputs": {
-      "unet_name": "Wan2.1-VACE-14B-Q6_K.gguf"
+      "image": "PLACEHOLDER_IMAGE"
     },
-    "class_type": "UnetLoaderGGUF",
+    "class_type": "LoadImage",
     "_meta": {
-      "title": "Unet Loader (GGUF)"
+      "title": "LoadImage"
     }
   },
-  "106": {
+  "30": {
     "inputs": {
-      "PowerLoraLoaderHeaderWidget": {
-        "type": "PowerLoraLoaderHeaderWidget"
-      },
-      "lora_1": {
-        "on": true,
-        "lora": "Wan21_T2V_14B_lightx2v_cfg_step_distill_lora_rank32.safetensors",
-        "strength": 1
-      },
-      "lora_2": {
-        "on": true,
-        "lora": "PLACEHOLDER_LORA",
-        "strength": 1.0
-      },
-      "lora_3": {
-        "on": false,
-        "lora": "PLACEHOLDER_LORA",
-        "strength": 1.0
-      },
-      "lora_4": {
-        "on": false,
-        "lora": "placeholder_4.safetensors",
-        "strength": 1
-      },
-      "lora_5": {
-        "on": false,
-        "lora": "placeholder_5.safetensors",
-        "strength": 1
-      },
-      "lora_6": {
-        "on": false,
-        "lora": "placeholder_6.safetensors",
-        "strength": 1
-      },
-      "lora_7": {
-        "on": false,
-        "lora": "placeholder_7.safetensors",
-        "strength": 1
-      },
-      "lora_8": {
-        "on": false,
-        "lora": "placeholder_8.safetensors",
-        "strength": 1
-      },
-      "lora_9": {
-        "on": false,
-        "lora": "placeholder_9.safetensors",
-        "strength": 1
-      },
-      "➕ Add Lora": "",
-      "model": ["111", 0],
-      "clip": ["108", 0]
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "ai-avatarka",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": ["28", 0]
     },
-    "class_type": "Power Lora Loader (rgthree)",
+    "class_type": "VHS_VideoCombine",
     "_meta": {
-      "title": "Power Lora Loader (rgthree)"
-    }
-  },
-  "108": {
-    "inputs": {
-      "clip_name": "umt5-xxl-encoder-Q8_0.gguf",
-      "type": "wan"
-    },
-    "class_type": "CLIPLoaderGGUF",
-    "_meta": {
-      "title": "CLIPLoader (GGUF)"
-    }
-  },
-  "109": {
-    "inputs": {
-      "sage_attention": "auto",
-      "model": ["105", 0]
-    },
-    "class_type": "PathchSageAttentionKJ",
-    "_meta": {
-      "title": "Patch Sage Attention KJ"
-    }
-  },
-  "111": {
-    "inputs": {
-      "enable_fp16_accumulation": true,
-      "model": ["109", 0]
-    },
-    "class_type": "ModelPatchTorchSettings",
-    "_meta": {
-      "title": "Model Patch Torch Settings"
+      "title": "VHS_VideoCombine"
     }
   }
 }
