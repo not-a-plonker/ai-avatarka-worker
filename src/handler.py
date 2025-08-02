@@ -438,6 +438,7 @@ def wait_for_completion(prompt_id: str) -> Optional[str]:
             try:
                 # Check ComfyUI history for THIS specific prompt_id
                 response = requests.get(f"http://{COMFYUI_SERVER}/history/{prompt_id}")
+                response.close()
                 if response.status_code == 200:
                     history = response.json()
                     
