@@ -725,16 +725,6 @@ def handler(job):
                 logger.info("✅ Cleaned up input image")
         except Exception as cleanup_error:
             logger.warning(f"⚠️ Cleanup failed: {cleanup_error}")
-
-         # Clean up models before returning
-        try:
-            import torch
-            torch.cuda.empty_cache()
-            import gc
-            gc.collect()
-            logger.info("🧹 Cleaned up GPU/CPU memory")
-        except Exception as e:
-            logger.warning(f"⚠️ Memory cleanup failed: {e}")
         
         # FIXED: Return proper success response with explicit status
         result = {
@@ -751,6 +741,24 @@ def handler(job):
         
         logger.info(f"🎉 Returning successful result for effect: {params['effect']}")
         logger.info(f"📝 Result keys: {list(result.keys())}")
+
+         # Schedule cleanup in background thread
+        import threading
+        def delayed_cleanup():
+            try:
+                import time
+                time.sleep(5)  # Wait 5 seconds for API to get result
+                import torch
+                torch.cuda.empty_cache()
+                import gc
+                gc.collect()
+                logger.info("🧹 Background cleanup completed")
+            except Exception as e:
+                logger.warning(f"⚠️ Background cleanup failed: {e}")
+        
+        cleanup_thread = threading.Thread(target=delayed_cleanup)
+        cleanup_thread.daemon = True
+        cleanup_thread.start()
         
         return result
         
