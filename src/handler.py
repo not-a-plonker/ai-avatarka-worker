@@ -725,6 +725,16 @@ def handler(job):
                 logger.info("✅ Cleaned up input image")
         except Exception as cleanup_error:
             logger.warning(f"⚠️ Cleanup failed: {cleanup_error}")
+
+         # Clean up models before returning
+        try:
+            import torch
+            torch.cuda.empty_cache()
+            import gc
+            gc.collect()
+            logger.info("🧹 Cleaned up GPU/CPU memory")
+        except Exception as e:
+            logger.warning(f"⚠️ Memory cleanup failed: {e}")
         
         # FIXED: Return proper success response with explicit status
         result = {
